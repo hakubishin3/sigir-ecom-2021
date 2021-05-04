@@ -4,9 +4,12 @@ from pathlib import Path
 
 from src import log, set_out, span
 from src.utils import seed_everything
+from src.data_loader import DataLoader
 
 
 def run(config: dict, debug: bool) -> None:
+    with span("Load datasets"):
+        browsing_train, search_train, sku_to_content = DataLoader(config).load_datasets()
     pass
 
 
@@ -25,4 +28,5 @@ if __name__ == "__main__":
     set_out(output_path / "train_log.txt")
 
     seed_everything(config["seed"])
+    log(f"configuration: {config}")
     run(config, args.debug)
