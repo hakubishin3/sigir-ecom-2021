@@ -1,0 +1,18 @@
+description: ModelNN
+model_name: "BookingLSTM"
+seed: 71
+fold:
+  shuffle: False
+  n_splits: 5
+params:
+  num_epochs: 15
+  bacth_size: 32
+  emb_dim: 512
+  rnn_dim: 512
+  dropout: 0.3
+  rnn_dropout: 0.3
+file_path:
+  input_dir: "/work/sigir-ecom-2021/data/input/"
+  output_dir: "/work/sigir-ecom-2021/data/output/"
+  feature_dir: "/work/sigir-ecom-2021/data/features/"
+  interim_dir: "/work/sigir-ecom-2021/data/interim/"
