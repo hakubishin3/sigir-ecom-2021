@@ -9,7 +9,7 @@ from src.data_loader import DataLoader
 
 def run(config: dict, debug: bool) -> None:
     with span("Load datasets"):
-        browsing_train, search_train, sku_to_content = DataLoader(config).load_datasets()
+        train, test, sku_to_content = DataLoader(config, debug).load_datasets()
     pass
 
 
