@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Dict, List
 
 
 class Preprocessor:
@@ -57,7 +57,23 @@ class Preprocessor:
         df = df[df['product_action'] != 'remove']
         # rows with null product_sku_hash
         df = df.dropna(subset=['product_sku_hash'])
+        # sessions with only one action (train only)
+        df["session_len_count"] = df.groupby("session_id_hash")["session_id_hash"].transform("count")
+        df = df.loc[~((df["session_len_count"] < 2) & (df["is_test"] == False))]
         # unseen from train data
         train_item_index_set = set(df.query("is_test == False")["product_sku_hash"].unique())
         df = df[df["product_sku_hash"].isin(train_item_index_set)]
         return df
+
+    @staticmethod
+    def get_session_sequences(df: pd.DataFrame) -> Dict[int, Dict[str, List]]:
+        session_seqs = (
+            df
+            .groupby("session_id_hash")
+            .agg({
+                "product_sku_hash": list,
+                "server_timestamp_epoch_sec": list,
+            })
+            .to_dict(orient="index") 
+        )
+        return session_seqs
