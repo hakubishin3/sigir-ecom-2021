@@ -26,11 +26,14 @@ class Preprocessor:
 
         self._label_encoding(total)
         total = self._filter_out(total)
-
+        total["server_timestamp_epoch_sec"] = (
+            (
+                total["server_timestamp_epoch_ms"]
+                - total.groupby("session_id_hash")["server_timestamp_epoch_ms"].shift()
+            ).fillna(0) / 1000   # ms -> sec
+        )
         train_preprocessed = total[total["is_test"] == False]
         test_preprocessed = total[total["is_test"] == True]
-        train_preprocessed.to_pickle(self.interim_dir / self.config["pkl_file"]["train_preprocessed"])
-        test_preprocessed.to_pickle(self.interim_dir / self.config["pkl_file"]["test_preprocessed"])
         return train_preprocessed, test_preprocessed
 
     def _label_encoding(self, df: pd.DataFrame) -> None:
@@ -49,10 +52,12 @@ class Preprocessor:
         index_to_label = {v: k for k, v in label_to_index.items()}
         return series.map(label_to_index), label_to_index, index_to_label
 
-    @staticmethod
-    def _filter_out(df: pd.DataFrame) -> pd.DataFrame:
+    def _filter_out(self, df: pd.DataFrame) -> pd.DataFrame:
         # `remove from cart` events to avoid feeding them to session_rec as positive signals
         df = df[df['product_action'] != 'remove']
         # rows with null product_sku_hash
         df = df.dropna(subset=['product_sku_hash'])
+        # unseen from train data
+        train_item_index_set = set(df.query("is_test == False")["product_sku_hash"].unique())
+        df = df[df["product_sku_hash"].isin(train_item_index_set)]
         return df

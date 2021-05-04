@@ -53,6 +53,7 @@ class DataLoader:
         search_df["is_search"] = True
         res = pd.concat([browsing_df, search_df], axis=0)
         res.sort_values(["session_id_hash", "server_timestamp_epoch_ms"], ascending=True, inplace=True)
+        res.reset_index(drop=True, inplace=True)
         return res
 
     @staticmethod
@@ -132,4 +133,5 @@ class DataLoader:
         )
         res.fillna(np.nan, inplace=True)
         res.sort_values(["session_id_hash", "server_timestamp_epoch_ms"], ascending=True, inplace=True)
+        res.reset_index(drop=True, inplace=True)
         return res

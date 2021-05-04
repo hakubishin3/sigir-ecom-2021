@@ -1,3 +1,4 @@
+task: "rec"
 description: ModelNN
 model_name: "BookingLSTM"
 seed: 71
@@ -16,3 +17,15 @@ file_path:
   output_dir: "/work/sigir-ecom-2021/data/output/"
   feature_dir: "/work/sigir-ecom-2021/data/features/"
   interim_dir: "/work/sigir-ecom-2021/data/interim/"
+raw_file:
+  browsing_train: "browsing_train.csv"
+  search_train: "search_train.csv"
+  sku_to_content: "sku_to_content.csv"
+  test: "rec_test_phase_1.json"
+pkl_file:
+  browsing_train: "browsing_train.pkl"
+  search_train: "search_train.pkl"
+  sku_to_content: "sku_to_content.pkl"
+  test: "rec_test_phase_1.pkl"
+  train_preprocessed: "train_preprocessed.pkl"
+  test_preprocessed: "test_preprocessed.pkl"
