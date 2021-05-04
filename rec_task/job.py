@@ -1,14 +1,17 @@
 import yaml
 import argparse
+import pandas as pd
 from pathlib import Path
+from sklearn.model_selection import StratifiedKFold
 
 from src import log, set_out, span
 from src.utils import seed_everything
 from src.data_loader import DataLoader
 from src.preprocessor import Preprocessor
+from src.dataset import RecTaskDataModule
 
 
-def run(config: dict, debug: bool) -> None:
+def run(config: dict, debug: bool, holdout: bool) -> None:
     with span("Load datasets"):
         train, test, sku_to_content = DataLoader(config, debug).load_datasets()
         test_session_ids = set(test["session_id_hash"].unique())
@@ -18,16 +21,41 @@ def run(config: dict, debug: bool) -> None:
 
     with span("Preprocess data"):
         pr = Preprocessor(config)
-        train_preprocessed, test_preprocessed = pr.run(train, test, sku_to_content)
+        train_preprocessed, test_preprocessed= pr.run(train, test, sku_to_content)
         log(f"train_preprocessed: {train_preprocessed.shape}")
         log(f"test_preprocessed: {test_preprocessed.shape}")
-    import pdb; pdb.set_trace()
+
+    with span("Get CV"):
+        cv = StratifiedKFold(**config["fold_params"])
+        folds = cv.split(
+            train_preprocessed,
+            pd.cut(
+                train_preprocessed["session_len_count"],
+                config["fold_params"]["n_splits"],
+                labels=False,
+            ),
+        )
+
+    log("Training")
+    for i_fold, (trn_idx, val_idx) in enumerate(folds):
+        if holdout and i_fold > 0:
+            break
+
+        with span(f"Fold = {i_fold}"):
+            train_session_seqs = pr.get_session_sequences(train_preprocessed.iloc[trn_idx])
+            val_session_seqs = pr.get_session_sequences(train_preprocessed.iloc[val_idx])
+            log(f"number of train sessions: {len(train_session_seqs)}")
+            log(f"number of valid sessions: {len(val_session_seqs)}")
+
+            dataset = RecTaskDataModule(config, train_session_seqs, val_session_seqs)
+            import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--holdout", action="store_true")
     args = parser.parse_args()
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
@@ -40,4 +68,4 @@ if __name__ == "__main__":
 
     seed_everything(config["seed"])
     log(f"configuration: {config}")
-    run(config, args.debug)
+    run(config, args.debug, args.holdout)
