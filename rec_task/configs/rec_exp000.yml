@@ -1,10 +1,26 @@
 task: "rec"
-description: ModelNN
 model_name: "BookingLSTM"
 seed: 71
-fold:
-  shuffle: False
+
+fold_params:
+  shuffle: True
   n_splits: 5
+  random_state: 71
+
+window_size: 20
+
+train_loader_params:
+  batch_size: 128
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+
+val_loader_params:
+  batch_size: 128
+  shuffle: false
+  num_workers: 2
+  pin_memory: true
+
 params:
   num_epochs: 15
   bacth_size: 32
@@ -12,16 +28,19 @@ params:
   rnn_dim: 512
   dropout: 0.3
   rnn_dropout: 0.3
+
 file_path:
   input_dir: "/work/sigir-ecom-2021/data/input/"
   output_dir: "/work/sigir-ecom-2021/data/output/"
   feature_dir: "/work/sigir-ecom-2021/data/features/"
   interim_dir: "/work/sigir-ecom-2021/data/interim/"
+
 raw_file:
   browsing_train: "browsing_train.csv"
   search_train: "search_train.csv"
   sku_to_content: "sku_to_content.csv"
   test: "rec_test_phase_1.json"
+
 pkl_file:
   browsing_train: "browsing_train.pkl"
   search_train: "search_train.pkl"
