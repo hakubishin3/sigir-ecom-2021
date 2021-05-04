@@ -49,7 +49,8 @@ class Preprocessor:
         index_to_label = {v: k for k, v in label_to_index.items()}
         return series.map(label_to_index), label_to_index, index_to_label
 
-    def _filter_out(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _filter_out(df: pd.DataFrame) -> pd.DataFrame:
         # `remove from cart` events to avoid feeding them to session_rec as positive signals
         df = df[df['product_action'] != 'remove']
         # rows with null product_sku_hash

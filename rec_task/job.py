@@ -17,7 +17,8 @@ def run(config: dict, debug: bool) -> None:
         log(f"sku_to_content: {sku_to_content.shape}")
 
     with span("Preprocess data"):
-        train_preprocessed, test_preprocessed = Preprocessor(config).run(train, test, sku_to_content)
+        pr = Preprocessor(config)
+        train_preprocessed, test_preprocessed = pr.run(train, test, sku_to_content)
         log(f"train_preprocessed: {train_preprocessed.shape}")
         log(f"test_preprocessed: {test_preprocessed.shape}")
     import pdb; pdb.set_trace()
