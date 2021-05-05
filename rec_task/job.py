@@ -61,7 +61,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             dataset = RecTaskDataModule(config, train_session_seqs, val_session_seqs)
             model = RecTaskPLModel(
                 config,
-                num_labels=train_preprocessed["product_sku_hash"].nunique(),
+                num_labels=len(pr.index_to_label_dict["product_sku_hash"]) + 1,   # plus padding id
             )
             trainer = get_trainer(config)
             trainer.fit(model, dataset)
