@@ -9,6 +9,8 @@ from src.utils import seed_everything
 from src.data_loader import DataLoader
 from src.preprocessor import Preprocessor
 from src.dataset import RecTaskDataModule
+from src.plmodel import RecTaskPLModel
+from src.trainer import get_trainer
 
 
 def run(config: dict, debug: bool, holdout: bool) -> None:
@@ -57,7 +59,12 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             log(f"number of valid sessions: {len(val_session_seqs)}")
 
             dataset = RecTaskDataModule(config, train_session_seqs, val_session_seqs)
-            dataset.train_dataloader()
+            model = RecTaskPLModel(
+                config,
+                num_labels=train_preprocessed["product_sku_hash"].nunique(),
+            )
+            trainer = get_trainer(config)
+            trainer.fit(model, dataset)
 
 
 if __name__ == "__main__":
