@@ -14,6 +14,8 @@ from src.trainer import get_trainer
 
 
 def run(config: dict, debug: bool, holdout: bool) -> None:
+    seed_everything(config["seed"])
+
     with span("Load datasets"):
         train, test, sku_to_content = DataLoader(config, debug).load_datasets()
         test_session_ids = set(test["session_id_hash"].unique())
@@ -82,6 +84,5 @@ if __name__ == "__main__":
         output_path.mkdir(parents=True)
     set_out(output_path / "train_log.txt")
 
-    seed_everything(config["seed"])
     log(f"configuration: {config}")
     run(config, args.debug, args.holdout)

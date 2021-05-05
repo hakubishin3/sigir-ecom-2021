@@ -26,7 +26,7 @@ class Preprocessor:
 
         total = self._filter_out(total)
         self._label_encoding(total)
-        total["server_timestamp_epoch_sec"] = (
+        total["elapsed_time"] = (
             (
                 total["server_timestamp_epoch_ms"]
                 - total.groupby("session_id_hash")["server_timestamp_epoch_ms"].shift()
@@ -72,7 +72,7 @@ class Preprocessor:
             .groupby("session_id_hash")
             .agg({
                 "product_sku_hash": list,
-                "server_timestamp_epoch_sec": list,
+                "elapsed_time": list,
             })
             .to_dict(orient="index") 
         )

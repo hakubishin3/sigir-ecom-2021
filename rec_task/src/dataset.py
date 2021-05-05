@@ -9,20 +9,20 @@ class Example(NamedTuple):
     """
     input_ids: torch.LongTensor
     attention_mask: torch.LongTensor
-    server_timestamp_epoch_sec: torch.FloatTensor
+    elapsed_time: torch.FloatTensor
 
     def to(self, device: torch.device) -> "Example":
         return Example(
             input_ids=self.input_ids.to(device),
             attention_mask=self.attention_mask.to(device),
-            server_timestamp_epoch_sec=self.server_timestamp_epoch_sec.to(device),
+            elapsed_time=self.elapsed_time.to(device),
         )
 
     def to_dict(self) -> Dict[str, torch.Tensor]:
         return dict(
             input_ids=self.input_ids,
             attention_mask=self.attention_mask,
-            server_timestamp_epoch_sec=self.server_timestamp_epoch_sec,
+            elapsed_time=self.elapsed_time,
         )
 
 
@@ -44,23 +44,23 @@ class RecTaskDataset(Dataset):
             start_idx = max(0, end_idx - window_size)
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
-            server_timestamp_epoch_sec = session_seq["server_timestamp_epoch_sec"][start_idx:end_idx]
+            elapsed_time = session_seq["elapsed_time"][start_idx:end_idx]
             target = session_seq["product_sku_hash"][-1]
 
             if len(product_sku_hash) < window_size:
                 # padding
                 pad_size = window_size - len(product_sku_hash)
                 product_sku_hash += [0] * pad_size
-                server_timestamp_epoch_sec += [0] * pad_size
+                elapsed_time += [0] * pad_size
 
             input_ids = torch.LongTensor(product_sku_hash)
             attention_mask = (input_ids > 0).float()
-            server_timestamp_epoch_sec = torch.FloatTensor(server_timestamp_epoch_sec)
+            elapsed_time = torch.FloatTensor(elapsed_time)
 
             example = Example(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                server_timestamp_epoch_sec=server_timestamp_epoch_sec,
+                elapsed_time=elapsed_time,
             )
 
             self.all_examples.append(example)

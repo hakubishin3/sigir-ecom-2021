@@ -26,7 +26,7 @@ class EncoderEmbeddings(nn.Module):
 
     def forward(self,
                 input_ids=None,
-                server_timestamp_epoch_sec=None,
+                elapsed_time=None,
                 inputs_embeds=None):
         if inputs_embeds is None:
             inputs_embeds = self.id_embeddings(input_ids)
@@ -68,14 +68,14 @@ class TransformerEncoderModel(nn.Module):
         self,
         input_ids=None,
         attention_mask=None,
-        server_timestamp_epoch_sec=None,
+        elapsed_time=None,
         encoder_outputs=None,
         inputs_embeds=None,
     ):
         if encoder_outputs is None:
             embedding_output = self.embeddings(
                 input_ids=input_ids,
-                server_timestamp_epoch_sec=server_timestamp_epoch_sec,
+                elapsed_time=elapsed_time,
                 inputs_embeds=inputs_embeds,
             )
             encoder_outputs = self.encoder(
