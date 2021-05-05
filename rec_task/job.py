@@ -26,11 +26,14 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         log(f"test_preprocessed: {test_preprocessed.shape}")
 
     with span("Get CV"):
+        train_session_info = train_preprocessed[
+            ["session_id_hash", "session_len_count"]
+        ].drop_duplicates()
         cv = StratifiedKFold(**config["fold_params"])
         folds = cv.split(
-            train_preprocessed,
+            train_session_info,
             pd.cut(
-                train_preprocessed["session_len_count"],
+                train_session_info["session_len_count"],
                 config["fold_params"]["n_splits"],
                 labels=False,
             ),
@@ -42,13 +45,19 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             break
 
         with span(f"Fold = {i_fold}"):
-            train_session_seqs = pr.get_session_sequences(train_preprocessed.iloc[trn_idx])
-            val_session_seqs = pr.get_session_sequences(train_preprocessed.iloc[val_idx])
+            train_session_ids = train_session_info.iloc[trn_idx]["session_id_hash"].tolist()
+            val_session_ids = train_session_info.iloc[val_idx]["session_id_hash"].tolist()
+            train_session_seqs = pr.get_session_sequences(
+                train_preprocessed[train_preprocessed["session_id_hash"].isin(train_session_ids)]
+            )
+            val_session_seqs = pr.get_session_sequences(
+                train_preprocessed[train_preprocessed["session_id_hash"].isin(val_session_ids)]
+            )
             log(f"number of train sessions: {len(train_session_seqs)}")
             log(f"number of valid sessions: {len(val_session_seqs)}")
 
             dataset = RecTaskDataModule(config, train_session_seqs, val_session_seqs)
-            import pdb; pdb.set_trace()
+            dataset.train_dataloader()
 
 
 if __name__ == "__main__":
