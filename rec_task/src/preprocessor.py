@@ -24,8 +24,8 @@ class Preprocessor:
         test["is_test"] = True
         total = pd.concat([train, test], axis=0)
 
-        self._label_encoding(total)
         total = self._filter_out(total)
+        self._label_encoding(total)
         total["server_timestamp_epoch_sec"] = (
             (
                 total["server_timestamp_epoch_ms"]
@@ -47,8 +47,8 @@ class Preprocessor:
     def _label_encode_series(series: pd.Series) -> Tuple[pd.Series, dict, dict]:
         """https://github.com/coveooss/SIGIR-ecom-data-challenge/blob/main/baselines/create_session_rec_input.py#L31-L42
         """
-        labels = set(series.unique())
-        label_to_index = {l: idx for idx, l in enumerate(labels) if l == l}   # avoid null value
+        labels = set(series.dropna().unique())   # avoid null value
+        label_to_index = {l: idx + 1 for idx, l in enumerate(labels)}  # 0: padding id
         index_to_label = {v: k for k, v in label_to_index.items()}
         return series.map(label_to_index), label_to_index, index_to_label
 
