@@ -50,7 +50,7 @@ class TransformerEncoderModel(nn.Module):
     ) -> None:
         super().__init__()
         self.encoder_params = encoder_params
-        self.encoder_params["vocab_size"] = num_labels + 1   # number of unique items + padding id
+        self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
         self.embeddings = EncoderEmbeddings(self.encoder_params)
         encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=8)
