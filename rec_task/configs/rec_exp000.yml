@@ -22,7 +22,7 @@ val_loader_params:
   num_workers: 2
   pin_memory: true
 
-n_epochs: 2
+n_epochs: 10
 
 encoder_params:
   embedding_size: 64
@@ -30,6 +30,7 @@ encoder_params:
   layer_norm_eps: 1.0e-12
   hidden_dropout_prob: 0.1
   pad_token_id: 0
+  max_elapsed_seconds: 1800
 
 optimizer_params:
   lr: 3.0e-4

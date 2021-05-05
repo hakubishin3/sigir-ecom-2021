@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 
@@ -11,9 +12,14 @@ class EncoderEmbeddings(nn.Module):
             encoder_params["embedding_size"],
             padding_idx=encoder_params["pad_token_id"],
         )
+        self.elapsed_time_embeddings = nn.Embedding(
+            self.encoder_params["max_elapsed_seconds"] + 1,
+            encoder_params["embedding_size"],
+            padding_idx=encoder_params["pad_token_id"],
+        )
 
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"],
+            encoder_params["embedding_size"] * 2,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -31,9 +37,11 @@ class EncoderEmbeddings(nn.Module):
         if inputs_embeds is None:
             inputs_embeds = self.id_embeddings(input_ids)
 
-        #category_embeddings = self.category_embeddings(category_ids)
-        #embeddings = torch.cat([inputs_embeds, category_embeddings], dim=-1)
-        embeddings = inputs_embeds
+        # elapsed time as categorical embedding
+        elapsed_time_cat = (elapsed_time.long() + 1).clamp(min=0, max=self.encoder_params["max_elapsed_seconds"])
+        elapsed_time_embeds = self.elapsed_time_embeddings(elapsed_time_cat)
+
+        embeddings = torch.cat([inputs_embeds, elapsed_time_embeds], dim=-1)
         embeddings = self.linear_embed(embeddings)
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -45,7 +53,6 @@ class TransformerEncoderModel(nn.Module):
         self,
         encoder_params: dict,
         dropout: float = 0.3,
-        hidden_size: int = 512,
         num_labels: int = 1,
     ) -> None:
         super().__init__()
@@ -53,9 +60,10 @@ class TransformerEncoderModel(nn.Module):
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
         self.embeddings = EncoderEmbeddings(self.encoder_params)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=8)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=6)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=4)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
         self.dropout = nn.Dropout(dropout)
+        self.global_max_pooling_1d = GlobalMaxPooling1D()
         self.ffn = nn.Sequential(
             nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
             nn.LayerNorm(encoder_params["hidden_size"]),
@@ -82,6 +90,18 @@ class TransformerEncoderModel(nn.Module):
                 embedding_output,
             )
         encoder_outputs = self.dropout(encoder_outputs)
-        zuru = encoder_outputs[:, -1, :]
-        logits = self.ffn(zuru)
+        pooling =self.global_max_pooling_1d(encoder_outputs)
+        logits = self.ffn(pooling)
         return logits
+
+
+class GlobalMaxPooling1D(nn.Module):
+    """https://discuss.pytorch.org/t/equivalent-of-keras-globalmaxpooling1d/45770/4
+    """
+    def __init__(self, data_format='channels_last'):
+        super(GlobalMaxPooling1D, self).__init__()
+        self.data_format = data_format
+        self.step_axis = 1 if self.data_format == 'channels_last' else 2
+
+    def forward(self, input):
+        return torch.max(input, axis=self.step_axis).values
