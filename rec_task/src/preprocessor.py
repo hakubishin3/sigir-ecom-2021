@@ -54,9 +54,9 @@ class Preprocessor:
 
     def _filter_out(self, df: pd.DataFrame) -> pd.DataFrame:
         # `remove from cart` events to avoid feeding them to session_rec as positive signals
-        df = df[df['product_action'] != 'remove']
+        df = df[df["product_action"] != "remove"]
         # rows with null product_sku_hash
-        df = df.dropna(subset=['product_sku_hash'])
+        df = df.dropna(subset=["product_sku_hash"])
         # sessions with only one action (train only)
         df["session_len_count"] = df.groupby("session_id_hash")["session_id_hash"].transform("count")
         df = df.loc[~((df["session_len_count"] < 2) & (df["is_test"] == False))]
