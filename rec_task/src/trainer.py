@@ -1,9 +1,11 @@
 import pytorch_lightning as pl
+from pathlib import Path
 
 
 def get_trainer(config: dict) -> pl.Trainer:
     ckpt_callback = pl.callbacks.ModelCheckpoint(
-        filename='{epoch:03d}-{val_mrr:.3f}-{val_f1_score:.3f}',
+        dirpath=Path(config["file_path"]["output_dir"]) / config["exp_name"],
+        filename='{epoch:03d}-{val_loss:.3f}-{val_mrr:.3f}-{val_f1_score:.3f}',
         save_top_k=1,
         monitor="val_mrr",
         mode="max",
