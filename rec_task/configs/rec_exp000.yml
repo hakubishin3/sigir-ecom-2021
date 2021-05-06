@@ -22,7 +22,13 @@ val_loader_params:
   num_workers: 2
   pin_memory: true
 
-n_epochs: 10
+test_loader_params:
+  batch_size: 1
+  shuffle: false
+  num_workers: 2
+  pin_memory: true
+
+n_epochs: 30
 
 encoder_params:
   embedding_size: 64
@@ -58,3 +64,6 @@ pkl_file:
   test: "rec_test_phase_1.pkl"
   train_preprocessed: "train_preprocessed.pkl"
   test_preprocessed: "test_preprocessed.pkl"
+
+out_file:
+  test: "rec_test_phase_1_pred.json"
