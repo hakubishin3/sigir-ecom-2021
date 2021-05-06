@@ -23,10 +23,11 @@ def evaluate_rec_task_metrics(
     f1_score = torch.Tensor(all_f1).mean()
 
     # mrr
+    # TODO: mrr は直前のアイテムしか評価対象にならないので、書き直す必要がある
     target_one_hot = nn.functional.one_hot(target.squeeze_(), num_classes=output.size()[1])
     reciprocal_ranks = reciprocal_rank(output, target_one_hot, k=top_k)
     mrr = reciprocal_ranks.mean()
-    
+
     metrics = {
         "f1_score": f1_score,
         "mrr": mrr,
