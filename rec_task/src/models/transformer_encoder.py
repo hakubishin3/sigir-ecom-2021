@@ -92,7 +92,7 @@ class TransformerEncoderModel(nn.Module):
         encoder_outputs = self.dropout(encoder_outputs)
         pooling =self.global_max_pooling_1d(encoder_outputs)
         logits = self.ffn(pooling)
-        return logits
+        return torch.sigmoid(logits)
 
 
 class GlobalMaxPooling1D(nn.Module):
