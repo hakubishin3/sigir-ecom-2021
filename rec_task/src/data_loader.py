@@ -20,8 +20,8 @@ class DataLoader:
         test = self.load_test_data(self.config["task"])
 
         if self.debug:
-            train_session_ids = set(browsing_train["session_id_hash"].unique())
-            train_session_ids = list(train_session_ids)[:int(len(train_session_ids) * 0.01)]
+            train_session_ids = list(browsing_train["session_id_hash"].unique())
+            train_session_ids = train_session_ids[:int(len(train_session_ids) * 0.01)]
             browsing_train = browsing_train[browsing_train["session_id_hash"].isin(train_session_ids)]
             search_train = search_train[search_train["session_id_hash"].isin(train_session_ids)]
 
