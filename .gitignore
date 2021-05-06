@@ -132,3 +132,4 @@ dmypy.json
 /notebooks/
 /lightning_logs/
 upload.env
+nohup.out
