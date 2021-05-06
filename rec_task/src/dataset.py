@@ -52,6 +52,8 @@ class RecTaskDataset(Dataset):
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
             elapsed_time = session_seq["elapsed_time"][start_idx:end_idx]
             target = session_seq["product_sku_hash"][-1]
+            if not isinstance(target, list):
+                target = [target]
 
             if len(product_sku_hash) < window_size:
                 # padding
@@ -70,7 +72,7 @@ class RecTaskDataset(Dataset):
             )
 
             self.all_examples.append(example)
-            self.all_targets.append(torch.LongTensor([target]))
+            self.all_targets.append(torch.LongTensor(target))
 
     def __len__(self):
         return len(self.session_seqs)
