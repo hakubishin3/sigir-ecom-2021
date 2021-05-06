@@ -1,5 +1,7 @@
 import yaml
+import json
 import argparse
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import StratifiedKFold
@@ -11,6 +13,7 @@ from src.preprocessor import Preprocessor
 from src.dataset import RecTaskDataModule
 from src.plmodel import RecTaskPLModel
 from src.trainer import get_trainer
+from src.submission import submission
 
 
 def run(config: dict, debug: bool, holdout: bool) -> None:
@@ -44,6 +47,10 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         )
 
     log("Training")
+    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 1   # plus padding id
+    test_session_seqs = pr.get_session_sequences(test_preprocessed)
+    test_pred_all_folds = np.zeros((len(test_session_seqs), num_labels), dtype=np.float32)
+
     for i_fold, (trn_idx, val_idx) in enumerate(folds):
         if holdout and i_fold > 0:
             break
@@ -60,13 +67,69 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             log(f"number of train sessions: {len(train_session_seqs)}")
             log(f"number of valid sessions: {len(val_session_seqs)}")
 
-            dataset = RecTaskDataModule(config, train_session_seqs, val_session_seqs)
-            model = RecTaskPLModel(
+            dataset = RecTaskDataModule(
                 config,
-                num_labels=len(pr.index_to_label_dict["product_sku_hash"]) + 1,   # plus padding id
+                train_session_seqs,
+                val_session_seqs,
+                test_session_seqs,
             )
+            model = RecTaskPLModel(config, num_labels=num_labels)
             trainer = get_trainer(config)
             trainer.fit(model, dataset)
+            best_ckpt = (
+                Path(config["file_path"]["output_dir"])
+                / config["exp_name"]
+                / f"best_model_fold{i_fold}.ckpt"
+            )
+            trainer.save_checkpoint(best_ckpt)
+
+            _test_pred = trainer.predict(model, dataset.test_dataloader())   # batch_size = 1
+            test_pred = np.array([i.reshape(-1) for i in _test_pred])
+            test_pred_all_folds += test_pred / config["fold_params"]["n_splits"]
+
+    with span("Make submission file"):
+        session_id_hash_index_to_test_data_index = {}
+        for i, session_id_hash_index in enumerate(test_session_seqs.keys()):
+            session_id_hash_index_to_test_data_index[session_id_hash_index] = i
+
+        raw_file_path = Path(config["file_path"]["input_dir"]) / config["raw_file"]["test"]
+        with raw_file_path.open() as f:
+            original_test_data = json.load(f)
+
+        popular_item_index = (
+            train_preprocessed.groupby("product_sku_hash")
+            .size()
+            .sort_values(ascending=False)
+            .head(20)
+            .index
+        )
+        popular_item_list = []
+        for item_index in popular_item_index:
+            product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]
+            popular_item_list.append(product_sku_hash)
+
+        for idx, query_label in enumerate(original_test_data):
+            query = query_label["query"]
+            session_id_hash = query[0]["session_id_hash"]
+            if pr.label_to_index_dict["session_id_hash"].get(session_id_hash) is None:
+                original_test_data[idx]["label"] = popular_item_list
+            else:
+                session_id_hash_index = pr.label_to_index_dict["session_id_hash"][session_id_hash]
+                test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
+                pred = test_pred[test_data_index]
+                items_index = pred.argsort()[-20:]
+                item_list = []
+                for item_index in items_index:
+                    product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]
+                    item_list.append(product_sku_hash)
+                original_test_data[idx]["label"] = item_list
+
+        outfile_path = Path(config["file_path"]["output_dir"]) / config["exp_name"] / "submission.json"
+        with outfile_path.open("w") as outfile:
+            json.dump(original_test_data, outfile)
+
+    with span("Submit"):
+        submission(outfile_path, config["task"])
 
 
 if __name__ == "__main__":
