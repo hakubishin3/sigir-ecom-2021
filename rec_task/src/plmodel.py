@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import pytorch_lightning as pl
 from typing import List
 
@@ -15,7 +16,7 @@ class RecTaskPLModel(pl.LightningModule):
             encoder_params=config["encoder_params"],
             num_labels=num_labels,
         )
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = torch.nn.BCEWithLogitsLoss()
 
     def forward(self, x_batch):
         output = self.model(**x_batch.to(self.config["device"]).to_dict())
@@ -24,14 +25,14 @@ class RecTaskPLModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x_batch, y_batch = batch
         y_pred = self.forward(x_batch)
-        loss = self.criterion(y_pred, y_batch.squeeze_())
+        loss = self.criterion(y_pred, y_batch)
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         x_batch, y_batch = batch
         y_pred = self.forward(x_batch)
+        loss = self.criterion(y_pred, y_batch)
         metrics = evaluate_rec_task_metrics(y_pred, y_batch)
-        loss = self.criterion(y_pred, y_batch.squeeze_())
         metrics["loss"] = loss
         return metrics
 
@@ -43,14 +44,17 @@ class RecTaskPLModel(pl.LightningModule):
 
     def validation_epoch_end(self, val_step_outputs: List[dict]):
         val_loss = torch.stack([o["loss"] for o in val_step_outputs]).mean()
-        val_f1_score = torch.stack([o["f1_score"] for o in val_step_outputs]).mean()
-        val_mrr = torch.stack([o["mrr"] for o in val_step_outputs]).mean()
+        val_f1_score = np.mean([o["f1_score"] for o in val_step_outputs])
+        val_mrr = np.mean([o["mrr"] for o in val_step_outputs])
 
         self.log("step", self.current_epoch)
         self.log("val_loss", val_loss)
         self.log("val_f1_score", val_f1_score)
         self.log("val_mrr", val_mrr)
-        print(self.current_epoch, val_loss)
+        print("step", self.current_epoch)
+        print("val_loss", val_loss)
+        print("val_f1_score", val_f1_score)
+        print("val_mrr", val_mrr)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
