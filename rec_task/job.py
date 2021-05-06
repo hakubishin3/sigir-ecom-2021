@@ -72,6 +72,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 train_session_seqs,
                 val_session_seqs,
                 test_session_seqs,
+                num_labels,
             )
             model = RecTaskPLModel(config, num_labels=num_labels)
             trainer = get_trainer(config)

@@ -32,7 +32,8 @@ class RecTaskDataset(Dataset):
     def __init__(
         self,
         session_seqs: Dict[int, Dict[str, List[int]]],
-        window_size: int = 10,
+        num_labels: int,
+        window_size: int,
         is_test: bool = False,
     ) -> None:
         self.session_seqs = session_seqs
@@ -51,7 +52,7 @@ class RecTaskDataset(Dataset):
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
             elapsed_time = session_seq["elapsed_time"][start_idx:end_idx]
-            target = session_seq["product_sku_hash"][-1]
+            target = session_seq["product_sku_hash"][-1:]
 
             if len(product_sku_hash) < window_size:
                 # padding
@@ -69,8 +70,10 @@ class RecTaskDataset(Dataset):
                 elapsed_time=elapsed_time,
             )
 
+            target = torch.LongTensor(target)
+            target_onehot = torch.nn.functional.one_hot(target, num_labels).sum(dim=0).float()
             self.all_examples.append(example)
-            self.all_targets.append(torch.LongTensor([target]))
+            self.all_targets.append(target_onehot)
 
     def __len__(self):
         return len(self.session_seqs)
@@ -89,16 +92,19 @@ class RecTaskDataModule(pl.LightningDataModule):
         train_session_seqs: Dict[int, Dict[str, List[int]]],
         val_session_seqs: Dict[int, Dict[str, List[int]]],
         test_session_seqs: Dict[int, Dict[str, List[int]]],
+        num_labels: int,
     ) -> None:
         super().__init__()
         self.config = config
         self.train_session_seqs = train_session_seqs
         self.val_session_seqs = val_session_seqs
         self.test_session_seqs = test_session_seqs
+        self.num_labels = num_labels
 
     def train_dataloader(self) -> "DataLoader":
         train_dataset = RecTaskDataset(
             session_seqs=self.train_session_seqs,
+            num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=False,
         )
@@ -111,6 +117,7 @@ class RecTaskDataModule(pl.LightningDataModule):
     def val_dataloader(self) -> "DataLoader":
         val_dataset = RecTaskDataset(
             session_seqs=self.val_session_seqs,
+            num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=False,
         )
@@ -123,6 +130,7 @@ class RecTaskDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> "DataLoader":
         test_dataset = RecTaskDataset(
             session_seqs=self.test_session_seqs,
+            num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=True,
         )
