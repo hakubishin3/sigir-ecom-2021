@@ -49,11 +49,12 @@ def mrr_top_k(
 
 def evaluate_rec_task_metrics(
     output: torch.Tensor,
-    target: torch.Tensor,
+    target_next_item: torch.Tensor,
+    target_subsequent_items: torch.Tensor,
     top_k: int = 20,
 ) -> dict:
-    f1_score = f1_top_k(output, target, top_k)
-    mrr = mrr_top_k(output, target, top_k)
+    f1_score = f1_top_k(output, target_subsequent_items, top_k)
+    mrr = mrr_top_k(output, target_next_item, top_k)
     metrics = {
         "f1_score": f1_score,
         "mrr": mrr,
