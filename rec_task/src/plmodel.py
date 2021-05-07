@@ -12,6 +12,7 @@ class RecTaskPLModel(pl.LightningModule):
     def __init__(self, config: dict, num_labels: int) -> None:
         super().__init__()
         self.config = config
+        self.num_labels = num_labels
         self.model = TransformerEncoderModel(
             encoder_params=config["encoder_params"],
             num_labels=num_labels,
@@ -23,16 +24,20 @@ class RecTaskPLModel(pl.LightningModule):
         return output
 
     def training_step(self, batch, batch_idx):
-        x_batch, y_batch = batch
+        x_batch, y_batch_next_item, y_batch_subsequent_items = batch
         y_pred = self.forward(x_batch)
-        loss = self.criterion(y_pred, y_batch)
+        loss = self.criterion(y_pred, y_batch_subsequent_items)
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
-        x_batch, y_batch = batch
+        x_batch, y_batch_next_item, y_batch_subsequent_items = batch
         y_pred = self.forward(x_batch)
-        loss = self.criterion(y_pred, y_batch)
-        metrics = evaluate_rec_task_metrics(y_pred, y_batch)
+        loss = self.criterion(y_pred, y_batch_subsequent_items)
+        metrics = evaluate_rec_task_metrics(
+            y_pred,
+            y_batch_next_item,
+            y_batch_subsequent_items,
+        )
         metrics["loss"] = loss
         return metrics
 
