@@ -1,7 +1,16 @@
 import torch
+import numpy as np
+import torch.nn as nn
 import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple, Dict, List, NamedTuple
+
+
+def get_onehot(tensor: torch.Tensor, num_labels: int) -> torch.Tensor:
+    tensor_onehot = nn.functional.one_hot(
+        tensor, num_labels
+    ).max(dim=0)[0].float()
+    return tensor_onehot
 
 
 class Example(NamedTuple):
@@ -35,9 +44,12 @@ class RecTaskDataset(Dataset):
         num_labels: int,
         window_size: int,
         is_test: bool = False,
+        max_output_size: int = 20,
     ) -> None:
         self.session_seqs = session_seqs
+        self.num_labels = num_labels
         self.is_test = is_test
+        self.max_output_size = max_output_size
         self.all_examples = []
         self.all_targets = []
 
@@ -45,14 +57,17 @@ class RecTaskDataset(Dataset):
             sequence_length = len(session_seq["product_sku_hash"])
 
             if not self.is_test:
-                end_idx = sequence_length - 1
+                max_output_size = min(self.max_output_size, sequence_length - 1)
+                n_output = np.random.randint(1, max_output_size + 1)
+                end_idx = sequence_length - n_output
             else:
+                n_output = 1
                 end_idx = sequence_length
             start_idx = max(0, end_idx - window_size)
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
             elapsed_time = session_seq["elapsed_time"][start_idx:end_idx]
-            target = session_seq["product_sku_hash"][-1:]
+            target = session_seq["product_sku_hash"][-1 * n_output:]
 
             if len(product_sku_hash) < window_size:
                 # padding
@@ -63,6 +78,7 @@ class RecTaskDataset(Dataset):
             input_ids = torch.LongTensor(product_sku_hash)
             attention_mask = (input_ids > 0).float()
             elapsed_time = torch.FloatTensor(elapsed_time)
+            target = torch.LongTensor(target)
 
             example = Example(
                 input_ids=input_ids,
@@ -70,17 +86,17 @@ class RecTaskDataset(Dataset):
                 elapsed_time=elapsed_time,
             )
 
-            target = torch.LongTensor(target)
-            target_onehot = torch.nn.functional.one_hot(target, num_labels).sum(dim=0).float()
             self.all_examples.append(example)
-            self.all_targets.append(target_onehot)
+            self.all_targets.append(target)
 
     def __len__(self):
         return len(self.session_seqs)
 
     def __getitem__(self, idx: int) -> Tuple[Example, torch.Tensor]:
         if not self.is_test:
-            return self.all_examples[idx], self.all_targets[idx]
+            target_onehot_subsequent_items = get_onehot(self.all_targets[idx], self.num_labels)
+            target_onehot_next_item = get_onehot(self.all_targets[idx][:1], self.num_labels)
+            return self.all_examples[idx], target_onehot_next_item, target_onehot_subsequent_items
         else:
             return self.all_examples[idx]
 

@@ -17,7 +17,7 @@ from src.submission import submission
 
 
 def run(config: dict, debug: bool, holdout: bool) -> None:
-    seed_everything(config["seed"])
+    seed_everything(config["seed"], gpu_mode=True)
 
     with span("Load datasets"):
         train, test, sku_to_content = DataLoader(config, debug).load_datasets()

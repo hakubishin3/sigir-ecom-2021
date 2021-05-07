@@ -37,4 +37,4 @@ def submission(outfile_path: Path, task: str) -> None:
     parent = outfile_path.parent
     submit_file_path = parent / f"{replaced_email}_{current_datetime_ms}.json"
     outfile_path.rename(submit_file_path)
-    upload_submission(local_file=str(out_file_path), task=task)
+    upload_submission(local_file=str(outfile_path), task=task)
