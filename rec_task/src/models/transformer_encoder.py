@@ -60,8 +60,8 @@ class TransformerEncoderModel(nn.Module):
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
         self.embeddings = EncoderEmbeddings(self.encoder_params)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=4)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=encoder_params["nhead"])
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=encoder_params["num_layers"])
         self.dropout = nn.Dropout(dropout)
         self.global_max_pooling_1d = GlobalMaxPooling1D()
         self.ffn = nn.Sequential(
