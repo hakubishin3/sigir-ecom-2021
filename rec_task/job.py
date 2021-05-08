@@ -29,6 +29,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         log(f"train: {train.shape}")
         log(f"test: {test.shape}")
         log(f"sku_to_content: {sku_to_content.shape}")
+        log(f"number of test sessions: {len(test_session_ids)}")
 
     with span("Preprocess data"):
         pr = Preprocessor(config)
@@ -54,6 +55,8 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 1   # plus padding id
     test_session_seqs = pr.get_session_sequences(test_preprocessed)
     test_pred_all_folds = np.zeros((len(test_session_seqs), num_labels), dtype=np.float32)
+    log(f"number of preprocessed test sessions: {len(test_session_seqs)}")
+    log(f"ratio of preprocessed test sessions: {len(test_session_seqs) / len(test_session_ids)}")
 
     for i_fold, (trn_idx, val_idx) in enumerate(folds):
         if holdout and i_fold > 0:
@@ -63,13 +66,13 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
                 project=config["wandb"]["project"],
                 entity=config["wandb"]["entity"],
-                tags=config["wandb"]["tags"] + [config["exp_name"]],
+                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else "prod"],
                 reinit=True,
             )
             wandb_logger = WandbLogger(
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
                 project=config["wandb"]["project"],
-                tags=config["wandb"]["tags"] + [config["exp_name"]],
+                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else "prod"],
             )
             wandb_logger.log_hyperparams(dict(config))
             wandb_logger.log_hyperparams({
@@ -95,7 +98,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 num_labels,
             )
             model = RecTaskPLModel(config, num_labels=num_labels)
-            trainer = get_trainer(config, wandb_logger=wandb_logger)
+            trainer = get_trainer(config, wandb_logger=wandb_logger, debug=debug)
             trainer.fit(model, dataset)
             best_ckpt = (
                 Path(config["file_path"]["output_dir"])
@@ -117,23 +120,11 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         with raw_file_path.open() as f:
             original_test_data = json.load(f)
 
-        popular_item_index = (
-            train_preprocessed.groupby("product_sku_hash")
-            .size()
-            .sort_values(ascending=False)
-            .head(20)
-            .index
-        )
-        popular_item_list = []
-        for item_index in popular_item_index:
-            product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]
-            popular_item_list.append(product_sku_hash)
-
         for idx, query_label in enumerate(original_test_data):
             query = query_label["query"]
             session_id_hash = query[0]["session_id_hash"]
             if pr.label_to_index_dict["session_id_hash"].get(session_id_hash) is None:
-                original_test_data[idx]["label"] = popular_item_list
+                original_test_data[idx]["label"] = ["0000"]   # 存在しない item を埋める
             else:
                 session_id_hash_index = pr.label_to_index_dict["session_id_hash"][session_id_hash]
                 test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
