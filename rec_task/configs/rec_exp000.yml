@@ -67,3 +67,12 @@ pkl_file:
 
 out_file:
   test: "rec_test_phase_1_pred.json"
+
+wandb:
+  use: True
+  project: "sigir-ecom-2021"
+  entity: "hakubishin3"
+  tags: [
+    "rec-task",
+    "transformer-encoder",
+  ]

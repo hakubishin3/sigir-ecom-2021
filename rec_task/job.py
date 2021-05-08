@@ -1,10 +1,13 @@
 import yaml
 import json
+import wandb
+import random
 import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import StratifiedKFold
+from pytorch_lightning.loggers import WandbLogger
 
 from src import log, set_out, span
 from src.utils import seed_everything
@@ -18,6 +21,7 @@ from src.submission import submission
 
 def run(config: dict, debug: bool, holdout: bool) -> None:
     seed_everything(config["seed"], gpu_mode=True)
+    rand = random.randint(0, 100000)
 
     with span("Load datasets"):
         train, test, sku_to_content = DataLoader(config, debug).load_datasets()
@@ -54,7 +58,23 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     for i_fold, (trn_idx, val_idx) in enumerate(folds):
         if holdout and i_fold > 0:
             break
-
+        if config["wandb"]["use"]:
+            wandb.init(
+                name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
+                project=config["wandb"]["project"],
+                entity=config["wandb"]["entity"],
+                tags=config["wandb"]["tags"] + [config["exp_name"]],
+                reinit=True,
+            )
+            wandb_logger = WandbLogger(
+                name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
+                project=config["wandb"]["project"],
+                tags=config["wandb"]["tags"] + [config["exp_name"]],
+            )
+            wandb_logger.log_hyperparams(dict(config))
+            wandb_logger.log_hyperparams({
+                "fold": i_fold,
+            })
         with span(f"Fold = {i_fold}"):
             train_session_ids = train_session_info.iloc[trn_idx]["session_id_hash"].tolist()
             val_session_ids = train_session_info.iloc[val_idx]["session_id_hash"].tolist()
@@ -75,7 +95,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 num_labels,
             )
             model = RecTaskPLModel(config, num_labels=num_labels)
-            trainer = get_trainer(config)
+            trainer = get_trainer(config, wandb_logger=wandb_logger)
             trainer.fit(model, dataset)
             best_ckpt = (
                 Path(config["file_path"]["output_dir"])

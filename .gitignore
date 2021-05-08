@@ -133,3 +133,4 @@ dmypy.json
 /lightning_logs/
 upload.env
 nohup.out
+/wandb/
