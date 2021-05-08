@@ -118,7 +118,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 session_id_hash_index = pr.label_to_index_dict["session_id_hash"][session_id_hash]
                 test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
                 pred = test_pred[test_data_index]
-                items_index = pred.argsort()[-20:]
+                items_index = pred.argsort()[-20:][::-1]
                 item_list = []
                 for item_index in items_index:
                     product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]
