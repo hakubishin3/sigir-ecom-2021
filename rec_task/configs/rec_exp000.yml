@@ -1,5 +1,5 @@
 task: "rec"
-model_name: "BookingLSTM"
+model_name: "TransformerEncoderModel"
 seed: 71
 device: cuda
 
@@ -7,8 +7,6 @@ fold_params:
   shuffle: True
   n_splits: 5
   random_state: 71
-
-window_size: 20
 
 train_loader_params:
   batch_size: 128
@@ -29,6 +27,7 @@ test_loader_params:
   pin_memory: true
 
 n_epochs: 10
+window_size: 20
 
 encoder_params:
   embedding_size: 64
