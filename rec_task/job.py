@@ -66,13 +66,13 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
                 project=config["wandb"]["project"],
                 entity=config["wandb"]["entity"],
-                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else None],
+                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else "prod"],
                 reinit=True,
             )
             wandb_logger = WandbLogger(
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
                 project=config["wandb"]["project"],
-                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else None],
+                tags=config["wandb"]["tags"] + [config["exp_name"]] + ["debug" if debug else "prod"],
             )
             wandb_logger.log_hyperparams(dict(config))
             wandb_logger.log_hyperparams({
