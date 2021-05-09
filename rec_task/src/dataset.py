@@ -18,7 +18,8 @@ class Example(NamedTuple):
     """
     input_ids: torch.LongTensor
     attention_mask: torch.LongTensor
-    elapsed_time: torch.FloatTensor
+    elapsed_time: torch.LongTensor
+    event_type: torch.LongTensor
     product_action: torch.LongTensor
     hashed_url: torch.LongTensor
     price_bucket: torch.LongTensor
@@ -34,6 +35,7 @@ class Example(NamedTuple):
             input_ids=self.input_ids.to(device),
             attention_mask=self.attention_mask.to(device),
             elapsed_time=self.elapsed_time.to(device),
+            event_type=self.event_type.to(device),
             product_action=self.product_action.to(device),
             hashed_url=self.hashed_url.to(device),
             price_bucket=self.price_bucket.to(device),
@@ -65,23 +67,61 @@ class RecTaskDataset(Dataset):
         self.all_targets = []
 
         for session_seq in self.session_seqs.values():
+            # session_seq["product_sku_hash"]
+            # ex. [view, detail, view, detail add, view]
             sequence_length = len(session_seq["product_sku_hash"])
 
             if not self.is_test:
-                max_output_size = min(self.max_output_size, sequence_length - 1)
+                # train and validate mode
+                if sequence_length == 1:
+                    # cant make input or target
+                    continue
+
+                n_items = len([i for i in session_seq["product_sku_hash"] if i != 1])   # 1 is nan
+                if n_items == 0:
+                    # cant make target
+                    continue
+
+                item_index = []
+                step = 1
+                for i in range(len(session_seq["product_sku_hash"])):
+                    if session_seq["product_sku_hash"][i] == 1:
+                        item_index.append(0)
+                    else:
+                        item_index.append(step)
+                        step += 1
+
+                if n_items == 1 and item_index.index(1) == 0:
+                    # ex. [detail, view, view]
+                    # cant make input
+                    continue
+
+                max_output_size = min(self.max_output_size, n_items)
                 n_output = np.random.randint(1, max_output_size + 1)
-                end_idx = sequence_length - n_output
+                end_idx = item_index.index(n_items - n_output + 1)
+                # check
+                start_idx = max(0, end_idx - window_size)
+                if len(session_seq["product_sku_hash"][start_idx:end_idx]) == 0:
+                    # ex: [detail, detail] and n_output = 2
+                    n_output -= 1
+                    end_idx = item_index.index(n_items - n_output + 1)
             else:
-                n_output = 1
+                # test mode
                 end_idx = sequence_length
+
             start_idx = max(0, end_idx - window_size)
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
-            target = session_seq["product_sku_hash"][-1 * n_output:]
+
+            if not self.is_test:
+                target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1]   # remove nan
+            else:
+                target = [0]   # tekitou
 
             pad_size = window_size - len(product_sku_hash)
             product_sku_hash += [0] * pad_size
             elapsed_time = session_seq["elapsed_time"][start_idx:end_idx] + [0] * pad_size
+            event_type = session_seq["event_type"][start_idx:end_idx] + [0] * pad_size
             product_action = session_seq["product_action"][start_idx:end_idx] + [0] * pad_size
             hashed_url = session_seq["hashed_url"][start_idx:end_idx] + [0] * pad_size
             price_bucket = session_seq["price_bucket"][start_idx:end_idx] + [0] * pad_size
@@ -100,6 +140,7 @@ class RecTaskDataset(Dataset):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 elapsed_time=torch.LongTensor(elapsed_time),
+                event_type=torch.LongTensor(event_type),
                 product_action=torch.LongTensor(product_action),
                 hashed_url=torch.LongTensor(hashed_url),
                 price_bucket=torch.LongTensor(price_bucket),
@@ -115,7 +156,7 @@ class RecTaskDataset(Dataset):
             self.all_targets.append(target)
 
     def __len__(self):
-        return len(self.session_seqs)
+        return len(self.all_examples)
 
     def __getitem__(self, idx: int) -> Tuple[Example, torch.Tensor]:
         if not self.is_test:

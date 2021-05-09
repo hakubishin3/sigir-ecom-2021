@@ -53,7 +53,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         )
 
     log("Training")
-    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 1   # plus padding id
+    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 2   # plus padding id and nan
     test_session_seqs = pr.get_session_sequences(test_preprocessed)
     test_pred_all_folds = np.zeros((len(test_session_seqs), num_labels), dtype=np.float32)
     log(f"number of preprocessed test sessions: {len(test_session_seqs)}")
