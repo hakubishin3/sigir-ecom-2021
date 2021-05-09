@@ -54,6 +54,9 @@ optimizer_params:
     - 0.99
   eps: 1.0e-8
 
+loss_func_params:
+  gamma: 2.0
+
 file_path:
   input_dir: "/work/sigir-ecom-2021/data/input/"
   output_dir: "/work/sigir-ecom-2021/data/output/"
