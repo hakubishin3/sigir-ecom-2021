@@ -15,6 +15,7 @@ class EncoderEmbeddings(nn.Module):
         )
         self.id_embeddings = make_embedding_func(encoder_params["vocab_size"])
         self.elapsed_time_embeddings = make_embedding_func(encoder_params["size_elapsed_time"])
+        self.event_type_embeddings = make_embedding_func(encoder_params["size_event_type"])
         self.product_action_embeddings = make_embedding_func(encoder_params["size_product_action"])
         self.hashed_url_embeddings = make_embedding_func(encoder_params["size_hashed_url"])
         self.price_bucket_embeddings = make_embedding_func(encoder_params["size_price_bucket"])
@@ -24,7 +25,7 @@ class EncoderEmbeddings(nn.Module):
         self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
 
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 9 + 50 * 2,
+            encoder_params["embedding_size"] * 10 + 50 * 2,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -39,6 +40,7 @@ class EncoderEmbeddings(nn.Module):
         self,
         input_ids=None,
         elapsed_time=None,
+        event_type=None,
         product_action=None,
         hashed_url=None,
         price_bucket=None,
@@ -52,6 +54,7 @@ class EncoderEmbeddings(nn.Module):
         embedding_list = [
             self.id_embeddings(input_ids),
             self.elapsed_time_embeddings(elapsed_time),
+            self.event_type_embeddings(event_type),
             self.product_action_embeddings(product_action),
             self.hashed_url_embeddings(hashed_url),
             self.price_bucket_embeddings(price_bucket),
@@ -98,6 +101,7 @@ class TransformerEncoderModel(nn.Module):
         input_ids=None,
         attention_mask=None,
         elapsed_time=None,
+        event_type=None,
         product_action=None,
         hashed_url=None,
         price_bucket=None,
@@ -111,6 +115,7 @@ class TransformerEncoderModel(nn.Module):
         embedding_output = self.embeddings(
             input_ids=input_ids,
             elapsed_time=elapsed_time,
+            event_type=event_type,
             product_action=product_action,
             hashed_url=hashed_url,
             price_bucket=price_bucket,
