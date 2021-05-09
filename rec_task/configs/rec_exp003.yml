@@ -11,7 +11,7 @@ fold_params:
 train_loader_params:
   batch_size: 128
   shuffle: true
-  num_workers: 0
+  num_workers: 2
   pin_memory: true
 
 val_loader_params:
