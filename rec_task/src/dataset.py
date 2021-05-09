@@ -93,7 +93,7 @@ class RecTaskDataset(Dataset):
             example = Example(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                elapsed_time=torch.FloatTensor(elapsed_time),
+                elapsed_time=torch.LongTensor(elapsed_time),
                 product_action=torch.LongTensor(product_action),
                 hashed_url=torch.LongTensor(hashed_url),
                 price_bucket=torch.LongTensor(price_bucket),

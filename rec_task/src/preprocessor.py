@@ -52,13 +52,16 @@ class Preprocessor:
             )
         )
 
-    @staticmethod
-    def get_elapsed_time(df: pd.DataFrame) -> None:
+    def get_elapsed_time(self, df: pd.DataFrame) -> None:
         df["elapsed_time"] = (
             (
                 df["server_timestamp_epoch_ms"]
                 - df.groupby("session_id_hash")["server_timestamp_epoch_ms"].shift()
             ).fillna(0) / 1000   # ms -> sec
+        )
+        df["elapsed_time"] = (
+            (df["elapsed_time"].astype(int) + 1)
+            .clip(lower=1, upper=self.config["encoder_params"]["size_elapsed_time"] - 1)
         )
 
     def _label_encoding(self, df: pd.DataFrame) -> None:

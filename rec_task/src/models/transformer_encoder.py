@@ -14,7 +14,7 @@ class EncoderEmbeddings(nn.Module):
             padding_idx=encoder_params["pad_token_id"],
         )
         self.id_embeddings = make_embedding_func(encoder_params["vocab_size"])
-        self.elapsed_time_embeddings = make_embedding_func(encoder_params["max_elapsed_seconds"] + 1)
+        self.elapsed_time_embeddings = make_embedding_func(encoder_params["size_elapsed_time"])
         self.product_action_embeddings = make_embedding_func(encoder_params["size_product_action"])
         self.hashed_url_embeddings = make_embedding_func(encoder_params["size_hashed_url"])
         self.price_bucket_embeddings = make_embedding_func(encoder_params["size_price_bucket"])
@@ -47,13 +47,9 @@ class EncoderEmbeddings(nn.Module):
         category_hash_second_level=None,
         category_hash_third_level=None,
     ):
-        inputs_embeds = self.id_embeddings(input_ids)
-
-        # elapsed time as categorical embedding
-        elapsed_time_cat = (elapsed_time.long() + 1).clamp(min=0, max=self.encoder_params["max_elapsed_seconds"])
-        elapsed_time_embeds = self.elapsed_time_embeddings(elapsed_time_cat)
-
-        other_embeddings = [
+        embedding_list = [
+            self.id_embeddings(input_ids),
+            self.elapsed_time_embeddings(elapsed_time),
             self.product_action_embeddings(product_action),
             self.hashed_url_embeddings(hashed_url),
             self.price_bucket_embeddings(price_bucket),
@@ -62,8 +58,7 @@ class EncoderEmbeddings(nn.Module):
             self.category_hash_second_level_embeddings(category_hash_second_level),
             self.category_hash_third_level_embeddings(category_hash_third_level),
         ]
-
-        embeddings = torch.cat([inputs_embeds, elapsed_time_embeds] + other_embeddings, dim=-1)
+        embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
