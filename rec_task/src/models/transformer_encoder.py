@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from functools import partial
 
 
 class EncoderEmbeddings(nn.Module):
@@ -7,19 +8,23 @@ class EncoderEmbeddings(nn.Module):
         super().__init__()
         self.encoder_params = encoder_params
 
-        self.id_embeddings = nn.Embedding(
-            encoder_params["vocab_size"],
-            encoder_params["embedding_size"],
+        make_embedding_func = partial(
+            nn.Embedding,
+            embedding_dim=encoder_params["embedding_size"],
             padding_idx=encoder_params["pad_token_id"],
         )
-        self.elapsed_time_embeddings = nn.Embedding(
-            self.encoder_params["max_elapsed_seconds"] + 1,
-            encoder_params["embedding_size"],
-            padding_idx=encoder_params["pad_token_id"],
-        )
+        self.id_embeddings = make_embedding_func(encoder_params["vocab_size"])
+        self.elapsed_time_embeddings = make_embedding_func(encoder_params["max_elapsed_seconds"] + 1)
+        self.product_action_embeddings = make_embedding_func(encoder_params["size_product_action"])
+        self.hashed_url_embeddings = make_embedding_func(encoder_params["size_hashed_url"])
+        self.price_bucket_embeddings = make_embedding_func(encoder_params["size_price_bucket"])
+        self.number_of_category_hash_embeddings = make_embedding_func(encoder_params["size_number_of_category_hash"])
+        self.category_hash_first_level_embeddings = make_embedding_func(encoder_params["size_category_hash_first_level"])
+        self.category_hash_second_level_embeddings = make_embedding_func(encoder_params["size_category_hash_second_level"])
+        self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
 
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 2,
+            encoder_params["embedding_size"] * 9,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -30,18 +35,35 @@ class EncoderEmbeddings(nn.Module):
             encoder_params["hidden_dropout_prob"]
         )
 
-    def forward(self,
-                input_ids=None,
-                elapsed_time=None,
-                inputs_embeds=None):
-        if inputs_embeds is None:
-            inputs_embeds = self.id_embeddings(input_ids)
+    def forward(
+        self,
+        input_ids=None,
+        elapsed_time=None,
+        product_action=None,
+        hashed_url=None,
+        price_bucket=None,
+        number_of_category_hash=None,
+        category_hash_first_level=None,
+        category_hash_second_level=None,
+        category_hash_third_level=None,
+    ):
+        inputs_embeds = self.id_embeddings(input_ids)
 
         # elapsed time as categorical embedding
         elapsed_time_cat = (elapsed_time.long() + 1).clamp(min=0, max=self.encoder_params["max_elapsed_seconds"])
         elapsed_time_embeds = self.elapsed_time_embeddings(elapsed_time_cat)
 
-        embeddings = torch.cat([inputs_embeds, elapsed_time_embeds], dim=-1)
+        other_embeddings = [
+            self.product_action_embeddings(product_action),
+            self.hashed_url_embeddings(hashed_url),
+            self.price_bucket_embeddings(price_bucket),
+            self.number_of_category_hash_embeddings(number_of_category_hash),
+            self.category_hash_first_level_embeddings(category_hash_first_level),
+            self.category_hash_second_level_embeddings(category_hash_second_level),
+            self.category_hash_third_level_embeddings(category_hash_third_level),
+        ]
+
+        embeddings = torch.cat([inputs_embeds, elapsed_time_embeds] + other_embeddings, dim=-1)
         embeddings = self.linear_embed(embeddings)
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -77,18 +99,28 @@ class TransformerEncoderModel(nn.Module):
         input_ids=None,
         attention_mask=None,
         elapsed_time=None,
-        encoder_outputs=None,
-        inputs_embeds=None,
+        product_action=None,
+        hashed_url=None,
+        price_bucket=None,
+        number_of_category_hash=None,
+        category_hash_first_level=None,
+        category_hash_second_level=None,
+        category_hash_third_level=None,
     ):
-        if encoder_outputs is None:
-            embedding_output = self.embeddings(
-                input_ids=input_ids,
-                elapsed_time=elapsed_time,
-                inputs_embeds=inputs_embeds,
-            )
-            encoder_outputs = self.encoder(
-                embedding_output,
-            )
+        embedding_output = self.embeddings(
+            input_ids=input_ids,
+            elapsed_time=elapsed_time,
+            product_action=product_action,
+            hashed_url=hashed_url,
+            price_bucket=price_bucket,
+            number_of_category_hash=number_of_category_hash,
+            category_hash_first_level=category_hash_first_level,
+            category_hash_second_level=category_hash_second_level,
+            category_hash_third_level=category_hash_third_level,
+        )
+        encoder_outputs = self.encoder(
+            embedding_output,
+        )
         encoder_outputs = self.dropout(encoder_outputs)
         pooling =self.global_max_pooling_1d(encoder_outputs)
         logits = self.ffn(pooling)
