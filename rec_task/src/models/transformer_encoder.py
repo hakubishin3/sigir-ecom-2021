@@ -24,7 +24,7 @@ class EncoderEmbeddings(nn.Module):
         self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
 
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 9,
+            encoder_params["embedding_size"] * 9 + 50 * 2,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -46,6 +46,8 @@ class EncoderEmbeddings(nn.Module):
         category_hash_first_level=None,
         category_hash_second_level=None,
         category_hash_third_level=None,
+        description_vector=None,
+        image_vector=None,
     ):
         embedding_list = [
             self.id_embeddings(input_ids),
@@ -57,6 +59,8 @@ class EncoderEmbeddings(nn.Module):
             self.category_hash_first_level_embeddings(category_hash_first_level),
             self.category_hash_second_level_embeddings(category_hash_second_level),
             self.category_hash_third_level_embeddings(category_hash_third_level),
+            description_vector,
+            image_vector,
         ]
         embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
@@ -101,6 +105,8 @@ class TransformerEncoderModel(nn.Module):
         category_hash_first_level=None,
         category_hash_second_level=None,
         category_hash_third_level=None,
+        description_vector=None,
+        image_vector=None,
     ):
         embedding_output = self.embeddings(
             input_ids=input_ids,
@@ -112,6 +118,8 @@ class TransformerEncoderModel(nn.Module):
             category_hash_first_level=category_hash_first_level,
             category_hash_second_level=category_hash_second_level,
             category_hash_third_level=category_hash_third_level,
+            description_vector=description_vector,
+            image_vector=image_vector,
         )
         encoder_outputs = self.encoder(
             embedding_output,

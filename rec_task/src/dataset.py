@@ -26,6 +26,8 @@ class Example(NamedTuple):
     category_hash_first_level: torch.LongTensor
     category_hash_second_level: torch.LongTensor
     category_hash_third_level: torch.LongTensor
+    description_vector: torch.FloatTensor
+    image_vector: torch.FloatTensor
 
     def to_dict(self, device: torch.device) -> Dict[str, torch.Tensor]:
         return dict(
@@ -39,6 +41,8 @@ class Example(NamedTuple):
             category_hash_first_level=self.category_hash_first_level.to(device),
             category_hash_second_level=self.category_hash_second_level.to(device),
             category_hash_third_level=self.category_hash_third_level.to(device),
+            description_vector=self.description_vector.to(device),
+            image_vector=self.image_vector.to(device),
         )
 
 
@@ -85,6 +89,8 @@ class RecTaskDataset(Dataset):
             category_hash_first_level = session_seq["category_hash_first_level"][start_idx:end_idx] + [0] * pad_size
             category_hash_second_level = session_seq["category_hash_second_level"][start_idx:end_idx] + [0] * pad_size
             category_hash_third_level = session_seq["category_hash_third_level"][start_idx:end_idx] + [0] * pad_size
+            description_vector = session_seq["description_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
+            image_vector = session_seq["image_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
 
             input_ids = torch.LongTensor(product_sku_hash)
             attention_mask = (input_ids > 0).float()
@@ -101,6 +107,8 @@ class RecTaskDataset(Dataset):
                 category_hash_first_level=torch.LongTensor(category_hash_first_level),
                 category_hash_second_level=torch.LongTensor(category_hash_second_level),
                 category_hash_third_level=torch.LongTensor(category_hash_third_level),
+                description_vector=torch.FloatTensor(description_vector),
+                image_vector=torch.FloatTensor(image_vector),
             )
 
             self.all_examples.append(example)

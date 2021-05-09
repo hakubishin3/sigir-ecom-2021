@@ -51,6 +51,15 @@ class Preprocessor:
                 lambda x: len(x.split("/")) if isinstance(x, str) else np.nan
             )
         )
+        # fillna
+        sku_to_content["description_vector"] = (
+            sku_to_content["description_vector"]
+            .apply(lambda x: x if isinstance(x, list) else [0.5] * 50)
+        )
+        sku_to_content["image_vector"] = (
+            sku_to_content["image_vector"]
+            .apply(lambda x: x if isinstance(x, list) else [0.5] * 50)
+        )
 
     def get_elapsed_time(self, df: pd.DataFrame) -> None:
         df["elapsed_time"] = (
@@ -108,6 +117,8 @@ class Preprocessor:
                 "category_hash_first_level": list,
                 "category_hash_second_level": list,
                 "category_hash_third_level": list,
+                "description_vector": list,
+                "image_vector": list,
             })
             .to_dict(orient="index") 
         )
