@@ -6,6 +6,7 @@ from typing import List
 
 from src.models.transformer_encoder import TransformerEncoderModel
 from src.metrics import evaluate_rec_task_metrics
+from src.loss import FocalLoss
 
 
 class RecTaskPLModel(pl.LightningModule):
@@ -17,7 +18,7 @@ class RecTaskPLModel(pl.LightningModule):
             encoder_params=config["encoder_params"],
             num_labels=num_labels,
         )
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = FocalLoss(gamma=config["loss_func_params"]["gamma"])
 
     def forward(self, x_batch):
         output = self.model(**x_batch.to_dict(self.config["device"]))
