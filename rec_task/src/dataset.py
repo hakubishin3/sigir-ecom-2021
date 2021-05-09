@@ -19,19 +19,26 @@ class Example(NamedTuple):
     input_ids: torch.LongTensor
     attention_mask: torch.LongTensor
     elapsed_time: torch.FloatTensor
+    product_action: torch.LongTensor
+    hashed_url: torch.LongTensor
+    price_bucket: torch.LongTensor
+    number_of_category_hash: torch.LongTensor
+    category_hash_first_level: torch.LongTensor
+    category_hash_second_level: torch.LongTensor
+    category_hash_third_level: torch.LongTensor
 
-    def to(self, device: torch.device) -> "Example":
-        return Example(
+    def to_dict(self, device: torch.device) -> Dict[str, torch.Tensor]:
+        return dict(
             input_ids=self.input_ids.to(device),
             attention_mask=self.attention_mask.to(device),
             elapsed_time=self.elapsed_time.to(device),
-        )
-
-    def to_dict(self) -> Dict[str, torch.Tensor]:
-        return dict(
-            input_ids=self.input_ids,
-            attention_mask=self.attention_mask,
-            elapsed_time=self.elapsed_time,
+            product_action=self.product_action.to(device),
+            hashed_url=self.hashed_url.to(device),
+            price_bucket=self.price_bucket.to(device),
+            number_of_category_hash=self.number_of_category_hash.to(device),
+            category_hash_first_level=self.category_hash_first_level.to(device),
+            category_hash_second_level=self.category_hash_second_level.to(device),
+            category_hash_third_level=self.category_hash_third_level.to(device),
         )
 
 
@@ -66,24 +73,34 @@ class RecTaskDataset(Dataset):
             start_idx = max(0, end_idx - window_size)
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
-            elapsed_time = session_seq["elapsed_time"][start_idx:end_idx]
             target = session_seq["product_sku_hash"][-1 * n_output:]
 
-            if len(product_sku_hash) < window_size:
-                # padding
-                pad_size = window_size - len(product_sku_hash)
-                product_sku_hash += [0] * pad_size
-                elapsed_time += [0] * pad_size
+            pad_size = window_size - len(product_sku_hash)
+            product_sku_hash += [0] * pad_size
+            elapsed_time = session_seq["elapsed_time"][start_idx:end_idx] + [0] * pad_size
+            product_action = session_seq["product_action"][start_idx:end_idx] + [0] * pad_size
+            hashed_url = session_seq["hashed_url"][start_idx:end_idx] + [0] * pad_size
+            price_bucket = session_seq["price_bucket"][start_idx:end_idx] + [0] * pad_size
+            number_of_category_hash = session_seq["number_of_category_hash"][start_idx:end_idx] + [0] * pad_size
+            category_hash_first_level = session_seq["category_hash_first_level"][start_idx:end_idx] + [0] * pad_size
+            category_hash_second_level = session_seq["category_hash_second_level"][start_idx:end_idx] + [0] * pad_size
+            category_hash_third_level = session_seq["category_hash_third_level"][start_idx:end_idx] + [0] * pad_size
 
             input_ids = torch.LongTensor(product_sku_hash)
             attention_mask = (input_ids > 0).float()
-            elapsed_time = torch.FloatTensor(elapsed_time)
             target = torch.LongTensor(target)
 
             example = Example(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                elapsed_time=elapsed_time,
+                elapsed_time=torch.FloatTensor(elapsed_time),
+                product_action=torch.LongTensor(product_action),
+                hashed_url=torch.LongTensor(hashed_url),
+                price_bucket=torch.LongTensor(price_bucket),
+                number_of_category_hash=torch.LongTensor(number_of_category_hash),
+                category_hash_first_level=torch.LongTensor(category_hash_first_level),
+                category_hash_second_level=torch.LongTensor(category_hash_second_level),
+                category_hash_third_level=torch.LongTensor(category_hash_third_level),
             )
 
             self.all_examples.append(example)

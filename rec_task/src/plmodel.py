@@ -20,7 +20,7 @@ class RecTaskPLModel(pl.LightningModule):
         self.criterion = torch.nn.BCEWithLogitsLoss()
 
     def forward(self, x_batch):
-        output = self.model(**x_batch.to(self.config["device"]).to_dict())
+        output = self.model(**x_batch.to_dict(self.config["device"]))
         return output
 
     def training_step(self, batch, batch_idx):
@@ -56,10 +56,6 @@ class RecTaskPLModel(pl.LightningModule):
         self.log("val_loss", val_loss)
         self.log("val_f1_score", val_f1_score)
         self.log("val_mrr", val_mrr)
-        print("step", self.current_epoch)
-        print("val_loss", val_loss)
-        print("val_f1_score", val_f1_score)
-        print("val_mrr", val_mrr)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

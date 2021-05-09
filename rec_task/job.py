@@ -19,9 +19,10 @@ from src.trainer import get_trainer
 from src.submission import submission
 
 
+rand = random.randint(0, 100000)
+
 def run(config: dict, debug: bool, holdout: bool) -> None:
     seed_everything(config["seed"], gpu_mode=True)
-    rand = random.randint(0, 100000)
 
     with span("Load datasets"):
         train, test, sku_to_content = DataLoader(config, debug).load_datasets()
@@ -61,7 +62,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     for i_fold, (trn_idx, val_idx) in enumerate(folds):
         if holdout and i_fold > 0:
             break
-        if config["wandb"]["use"]:
+        if config["wandb"]["use"] and not debug:
             wandb.init(
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
                 project=config["wandb"]["project"],

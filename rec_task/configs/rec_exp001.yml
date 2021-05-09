@@ -38,6 +38,14 @@ encoder_params:
   hidden_dropout_prob: 0.1
   pad_token_id: 0
   max_elapsed_seconds: 1800
+  size_event_type: 4   # add nan and padding
+  size_product_action: 6   # add nan and padding
+  size_hashed_url: 498845   # add nan and padding
+  size_price_bucket: 12   # add nan and padding
+  size_category_hash_first_level: 11   # add nan and padding
+  size_category_hash_second_level: 42   # add nan and padding
+  size_category_hash_third_level: 81   # add nan and padding
+  size_number_of_category_hash: 5   # add nan and padding
 
 optimizer_params:
   lr: 3.0e-4
