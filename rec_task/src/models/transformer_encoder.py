@@ -14,7 +14,8 @@ class EncoderEmbeddings(nn.Module):
             padding_idx=encoder_params["pad_token_id"],
         )
         self.id_embeddings = make_embedding_func(encoder_params["vocab_size"])
-        self.elapsed_time_embeddings = make_embedding_func(encoder_params["max_elapsed_seconds"] + 1)
+        self.elapsed_time_embeddings = make_embedding_func(encoder_params["size_elapsed_time"])
+        self.event_type_embeddings = make_embedding_func(encoder_params["size_event_type"])
         self.product_action_embeddings = make_embedding_func(encoder_params["size_product_action"])
         self.hashed_url_embeddings = make_embedding_func(encoder_params["size_hashed_url"])
         self.price_bucket_embeddings = make_embedding_func(encoder_params["size_price_bucket"])
@@ -24,7 +25,7 @@ class EncoderEmbeddings(nn.Module):
         self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
 
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 9,
+            encoder_params["embedding_size"] * 10 + 50 * 2,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -39,6 +40,7 @@ class EncoderEmbeddings(nn.Module):
         self,
         input_ids=None,
         elapsed_time=None,
+        event_type=None,
         product_action=None,
         hashed_url=None,
         price_bucket=None,
@@ -46,14 +48,13 @@ class EncoderEmbeddings(nn.Module):
         category_hash_first_level=None,
         category_hash_second_level=None,
         category_hash_third_level=None,
+        description_vector=None,
+        image_vector=None,
     ):
-        inputs_embeds = self.id_embeddings(input_ids)
-
-        # elapsed time as categorical embedding
-        elapsed_time_cat = (elapsed_time.long() + 1).clamp(min=0, max=self.encoder_params["max_elapsed_seconds"])
-        elapsed_time_embeds = self.elapsed_time_embeddings(elapsed_time_cat)
-
-        other_embeddings = [
+        embedding_list = [
+            self.id_embeddings(input_ids),
+            self.elapsed_time_embeddings(elapsed_time),
+            self.event_type_embeddings(event_type),
             self.product_action_embeddings(product_action),
             self.hashed_url_embeddings(hashed_url),
             self.price_bucket_embeddings(price_bucket),
@@ -61,9 +62,10 @@ class EncoderEmbeddings(nn.Module):
             self.category_hash_first_level_embeddings(category_hash_first_level),
             self.category_hash_second_level_embeddings(category_hash_second_level),
             self.category_hash_third_level_embeddings(category_hash_third_level),
+            description_vector,
+            image_vector,
         ]
-
-        embeddings = torch.cat([inputs_embeds, elapsed_time_embeds] + other_embeddings, dim=-1)
+        embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -99,6 +101,7 @@ class TransformerEncoderModel(nn.Module):
         input_ids=None,
         attention_mask=None,
         elapsed_time=None,
+        event_type=None,
         product_action=None,
         hashed_url=None,
         price_bucket=None,
@@ -106,10 +109,13 @@ class TransformerEncoderModel(nn.Module):
         category_hash_first_level=None,
         category_hash_second_level=None,
         category_hash_third_level=None,
+        description_vector=None,
+        image_vector=None,
     ):
         embedding_output = self.embeddings(
             input_ids=input_ids,
             elapsed_time=elapsed_time,
+            event_type=event_type,
             product_action=product_action,
             hashed_url=hashed_url,
             price_bucket=price_bucket,
@@ -117,6 +123,8 @@ class TransformerEncoderModel(nn.Module):
             category_hash_first_level=category_hash_first_level,
             category_hash_second_level=category_hash_second_level,
             category_hash_third_level=category_hash_third_level,
+            description_vector=description_vector,
+            image_vector=image_vector,
         )
         encoder_outputs = self.encoder(
             embedding_output,

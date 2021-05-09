@@ -53,7 +53,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         )
 
     log("Training")
-    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 1   # plus padding id
+    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 2   # plus padding id and nan
     test_session_seqs = pr.get_session_sequences(test_preprocessed)
     test_pred_all_folds = np.zeros((len(test_session_seqs), num_labels), dtype=np.float32)
     log(f"number of preprocessed test sessions: {len(test_session_seqs)}")
@@ -62,6 +62,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     for i_fold, (trn_idx, val_idx) in enumerate(folds):
         if holdout and i_fold > 0:
             break
+
         if config["wandb"]["use"] and not debug:
             wandb.init(
                 name=f"{config['exp_name']}-fold-{i_fold}-{rand}",
@@ -79,6 +80,9 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             wandb_logger.log_hyperparams({
                 "fold": i_fold,
             })
+        else:
+            wandb_logger = None
+
         with span(f"Fold = {i_fold}"):
             train_session_ids = train_session_info.iloc[trn_idx]["session_id_hash"].tolist()
             val_session_ids = train_session_info.iloc[val_idx]["session_id_hash"].tolist()
