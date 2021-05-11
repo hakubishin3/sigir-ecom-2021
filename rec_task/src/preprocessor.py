@@ -117,13 +117,9 @@ class Preprocessor:
         # rows with query
         df = df.query("is_search == 0")
 
-        # sessions with only one action (train only)
-        df.loc[:, "session_len_count"] = df.groupby("session_id_hash")["session_id_hash"].transform("count")
-        df = df.loc[~((df["session_len_count"] < 2) & (df["is_test"] == False))]
-
         # unseen from train data
         train_item_index_set = set(df.query("is_test == False")["product_sku_hash"].unique())
-        df = df[df["product_sku_hash"].isin(train_item_index_set)]
+        df.loc[~df["product_sku_hash"].isin(train_item_index_set), "product_sku_hash"] = np.nan
         return df
 
     @staticmethod
