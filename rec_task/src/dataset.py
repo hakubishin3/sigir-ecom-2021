@@ -77,19 +77,24 @@ class RecTaskDataset(Dataset):
                     # cant make input or target
                     continue
 
-                n_items = len([i for i in session_seq["product_sku_hash"] if i != 1])   # 1 is nan
-                if n_items == 0:
+                n_items = len(
+                    np.unique([i for i in session_seq["product_sku_hash"] if i != 1])
+                )   # 1 is nan
+                if n_items < 2:
                     # cant make target
                     continue
 
                 item_index = []
-                step = 1
+                check_item_list = []
+                step = 0
                 for i in range(len(session_seq["product_sku_hash"])):
                     if session_seq["product_sku_hash"][i] == 1:
                         item_index.append(0)
                     else:
+                        if session_seq["product_sku_hash"][i] not in check_item_list:
+                            step += 1
+                            check_item_list.append(session_seq["product_sku_hash"][i])
                         item_index.append(step)
-                        step += 1
 
                 if n_items == 1 and item_index.index(1) == 0:
                     # ex. [detail, view, view]
@@ -97,7 +102,7 @@ class RecTaskDataset(Dataset):
                     continue
 
                 max_output_size = min(self.max_output_size, n_items)
-                n_output = np.random.randint(1, max_output_size + 1)
+                n_output = np.random.randint(2, max_output_size + 1)
                 end_idx = item_index.index(n_items - n_output + 1)
                 # check
                 start_idx = max(0, end_idx - window_size)
@@ -113,11 +118,6 @@ class RecTaskDataset(Dataset):
 
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
 
-            if not self.is_test:
-                target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1]   # remove nan
-            else:
-                target = [0]   # tekitou
-
             pad_size = window_size - len(product_sku_hash)
             product_sku_hash += [0] * pad_size
             elapsed_time = session_seq["elapsed_time"][start_idx:end_idx] + [0] * pad_size
@@ -131,6 +131,12 @@ class RecTaskDataset(Dataset):
             category_hash_third_level = session_seq["category_hash_third_level"][start_idx:end_idx] + [0] * pad_size
             description_vector = session_seq["description_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
             image_vector = session_seq["image_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
+
+            if not self.is_test:
+                target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1 and i not in product_sku_hash]   # remove nan
+                target = sorted(set(target), key=target.index)
+            else:
+                target = [0]   # tekitou
 
             input_ids = torch.LongTensor(product_sku_hash)
             attention_mask = (input_ids > 0).float()
