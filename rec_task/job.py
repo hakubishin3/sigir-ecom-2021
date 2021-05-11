@@ -39,21 +39,20 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
         log(f"test_preprocessed: {test_preprocessed.shape}")
 
     with span("Get CV"):
-        train_session_info = train_preprocessed[
-            ["session_id_hash", "session_len_count"]
-        ].drop_duplicates()
+        train_session_info = train_preprocessed.groupby("session_id_hash")["product_sku_hash"].nunique().reset_index()
+        train_session_info.columns = ["session_id_hash", "n_items"]
         cv = StratifiedKFold(**config["fold_params"])
         folds = cv.split(
             train_session_info,
             pd.cut(
-                train_session_info["session_len_count"],
+                train_session_info["n_items"],
                 config["fold_params"]["n_splits"],
                 labels=False,
             ),
         )
 
     log("Training")
-    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 2   # plus padding id and nan
+    num_labels = len(pr.index_to_label_dict["product_sku_hash"]) + 1   # plus padding id
     test_session_seqs = pr.get_session_sequences(test_preprocessed)
     test_pred_all_folds = np.zeros((len(test_session_seqs), num_labels), dtype=np.float32)
     log(f"number of preprocessed test sessions: {len(test_session_seqs)}")
@@ -134,7 +133,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 session_id_hash_index = pr.label_to_index_dict["session_id_hash"][session_id_hash]
                 test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
                 pred = test_pred[test_data_index]
-                items_index = pred.argsort()[-20:][::-1]
+                items_index = pred.argsort()[::-1][:20]
                 item_list = []
                 for item_index in items_index:
                     product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]

@@ -23,15 +23,23 @@ class EncoderEmbeddings(nn.Module):
         self.category_hash_first_level_embeddings = make_embedding_func(encoder_params["size_category_hash_first_level"])
         self.category_hash_second_level_embeddings = make_embedding_func(encoder_params["size_category_hash_second_level"])
         self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
+        self.position_embeddings = nn.Embedding(
+            encoder_params["window_size"],
+            embedding_dim=encoder_params["hidden_size"],
+        )
 
+        self.item_linear_embed = nn.Linear(
+            encoder_params["embedding_size"] * 6 + 50 * 2,
+            encoder_params["hidden_size"],
+        )
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 10 + 50 * 2,
+            encoder_params["embedding_size"] * 4 + encoder_params["hidden_size"],
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
             encoder_params["hidden_size"],
             eps=encoder_params["layer_norm_eps"],
-            )
+        )
         self.dropout = nn.Dropout(
             encoder_params["hidden_dropout_prob"]
         )
@@ -51,12 +59,8 @@ class EncoderEmbeddings(nn.Module):
         description_vector=None,
         image_vector=None,
     ):
-        embedding_list = [
+        item_embedding_list = [
             self.id_embeddings(input_ids),
-            self.elapsed_time_embeddings(elapsed_time),
-            self.event_type_embeddings(event_type),
-            self.product_action_embeddings(product_action),
-            self.hashed_url_embeddings(hashed_url),
             self.price_bucket_embeddings(price_bucket),
             self.number_of_category_hash_embeddings(number_of_category_hash),
             self.category_hash_first_level_embeddings(category_hash_first_level),
@@ -65,10 +69,28 @@ class EncoderEmbeddings(nn.Module):
             description_vector,
             image_vector,
         ]
+        item_embeddings = torch.cat(item_embedding_list, dim=-1)
+        item_embeddings = self.item_linear_embed(item_embeddings)
+
+        embedding_list = [
+            item_embeddings,
+            self.elapsed_time_embeddings(elapsed_time),
+            self.event_type_embeddings(event_type),
+            self.product_action_embeddings(product_action),
+            self.hashed_url_embeddings(hashed_url),
+        ]
         embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
+
+        seq_length = input_ids.size(1)
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+        position_embeddings = self.position_embeddings(position_ids)
+        embeddings = embeddings + position_embeddings
+
         embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
+
         return embeddings
 
 
