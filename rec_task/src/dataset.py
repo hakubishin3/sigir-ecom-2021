@@ -120,17 +120,17 @@ class RecTaskDataset(Dataset):
 
             pad_size = window_size - len(product_sku_hash)
             product_sku_hash += [0] * pad_size
-            elapsed_time = session_seq["elapsed_time"][start_idx:end_idx] + [0] * pad_size
-            event_type = session_seq["event_type"][start_idx:end_idx] + [0] * pad_size
-            product_action = session_seq["product_action"][start_idx:end_idx] + [0] * pad_size
-            hashed_url = session_seq["hashed_url"][start_idx:end_idx] + [0] * pad_size
-            price_bucket = session_seq["price_bucket"][start_idx:end_idx] + [0] * pad_size
-            number_of_category_hash = session_seq["number_of_category_hash"][start_idx:end_idx] + [0] * pad_size
-            category_hash_first_level = session_seq["category_hash_first_level"][start_idx:end_idx] + [0] * pad_size
-            category_hash_second_level = session_seq["category_hash_second_level"][start_idx:end_idx] + [0] * pad_size
-            category_hash_third_level = session_seq["category_hash_third_level"][start_idx:end_idx] + [0] * pad_size
-            description_vector = session_seq["description_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
-            image_vector = session_seq["image_vector"][start_idx:end_idx] + [[0] * 50] * pad_size
+            elapsed_time = [0] * pad_size + session_seq["elapsed_time"][start_idx:end_idx]
+            event_type = [0] * pad_size + session_seq["event_type"][start_idx:end_idx] 
+            product_action = [0] * pad_size + session_seq["product_action"][start_idx:end_idx] 
+            hashed_url = [0] * pad_size + session_seq["hashed_url"][start_idx:end_idx] 
+            price_bucket = [0] * pad_size + session_seq["price_bucket"][start_idx:end_idx] 
+            number_of_category_hash = [0] * pad_size + session_seq["number_of_category_hash"][start_idx:end_idx] 
+            category_hash_first_level = [0] * pad_size + session_seq["category_hash_first_level"][start_idx:end_idx] 
+            category_hash_second_level = [0] * pad_size + session_seq["category_hash_second_level"][start_idx:end_idx] 
+            category_hash_third_level = [0] * pad_size + session_seq["category_hash_third_level"][start_idx:end_idx] 
+            description_vector = [[0] * 50] * pad_size + session_seq["description_vector"][start_idx:end_idx]
+            image_vector = [[0] * 50] * pad_size + session_seq["image_vector"][start_idx:end_idx]
 
             if not self.is_test:
                 target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1 and i not in product_sku_hash]   # remove nan
