@@ -117,6 +117,12 @@ class TransformerEncoderModel(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(encoder_params["hidden_size"], num_labels),
         )
+        self.seq = nn.LSTM(
+            input_size=encoder_params["hidden_size"],
+            bidirectional=False,
+            hidden_size=encoder_params["lstm_hidden_size"],
+            num_layers=encoder_params["lstm_num_layers"],
+            dropout=encoder_params["lstm_dropout"])
 
     def forward(
         self,
@@ -151,9 +157,15 @@ class TransformerEncoderModel(nn.Module):
         encoder_outputs = self.encoder(
             embedding_output,
         )
+        # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
+        encoder_outputs = encoder_outputs.permute([1, 0, 2])
         encoder_outputs = self.dropout(encoder_outputs)
-        pooling =self.global_max_pooling_1d(encoder_outputs)
-        logits = self.ffn(pooling)
+
+        # hidden: [seq_len, batch, lstm_hidden_dim]
+        hidden, _  = self.seq(encoder_outputs)
+        last_state = hidden[-1, :, :]
+        logits = self.ffn(last_state)
+
         return logits
 
 
