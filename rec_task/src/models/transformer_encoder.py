@@ -106,8 +106,14 @@ class TransformerEncoderModel(nn.Module):
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
         self.embeddings = EncoderEmbeddings(self.encoder_params)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=encoder_params["nhead"])
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=encoder_params["num_layers"])
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=encoder_params["hidden_size"],
+            nhead=encoder_params["nhead"],
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=encoder_params["num_layers"],
+        )
         self.dropout = nn.Dropout(dropout)
         self.global_max_pooling_1d = GlobalMaxPooling1D()
         self.ffn = nn.Sequential(
@@ -154,11 +160,11 @@ class TransformerEncoderModel(nn.Module):
             description_vector=description_vector,
             image_vector=image_vector,
         )
+        # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
+        embedding_output = embedding_output.permute([1, 0, 2])
         encoder_outputs = self.encoder(
             embedding_output,
         )
-        # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
-        encoder_outputs = encoder_outputs.permute([1, 0, 2])
         encoder_outputs = self.dropout(encoder_outputs)
 
         # hidden: [seq_len, batch, lstm_hidden_dim]

@@ -32,13 +32,13 @@ window_size: 20
 encoder_params:
   window_size: 20
   embedding_size: 64
-  nhead: 4
-  num_layers: 1
+  nhead: 8
+  num_layers: 2
   hidden_size: 256
   layer_norm_eps: 1.0e-12
   hidden_dropout_prob: 0.1
   lstm_hidden_size: 256
-  lstm_num_layers: 2
+  lstm_num_layers: 1
   lstm_dropout: 0.1
   pad_token_id: 0
   size_elapsed_time: 1801   # add padding
