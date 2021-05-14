@@ -116,7 +116,14 @@ class TransformerEncoderModel(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.global_max_pooling_1d = GlobalMaxPooling1D()
-        self.ffn = nn.Sequential(
+        self.ffn_next_item = nn.Sequential(
+            nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
+            nn.LayerNorm(encoder_params["hidden_size"]),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(encoder_params["hidden_size"], num_labels),
+        )
+        self.ffn_subsequent_items = nn.Sequential(
             nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
             nn.LayerNorm(encoder_params["hidden_size"]),
             nn.Dropout(dropout),
@@ -170,9 +177,10 @@ class TransformerEncoderModel(nn.Module):
         # hidden: [seq_len, batch, lstm_hidden_dim]
         hidden, _  = self.seq(encoder_outputs)
         last_state = hidden[-1, :, :]
-        logits = self.ffn(last_state)
+        output_next_item = self.ffn_next_item(last_state)
+        output_subsequent_items = self.ffn_subsequent_items(last_state)
 
-        return logits
+        return output_next_item, output_subsequent_items
 
 
 class GlobalMaxPooling1D(nn.Module):
