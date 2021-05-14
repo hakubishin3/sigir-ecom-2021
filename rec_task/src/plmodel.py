@@ -40,7 +40,7 @@ class RecTaskPLModel(pl.LightningModule):
         loss_subsequent_items = self.criterion(y_pred_subsequent_items, y_batch_subsequent_items)
         loss = loss_next_item + loss_subsequent_items
 
-        y_pred = torch.sigmoid(y_pred_next_item) + torch.sigmoid(y_pred_subsequent_items)
+        y_pred = y_pred_next_item + y_pred_subsequent_items
         metrics = evaluate_rec_task_metrics(
             y_pred,
             y_batch_next_item,

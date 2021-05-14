@@ -112,9 +112,6 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             )
             trainer.save_checkpoint(best_ckpt)
 
-            def sigmoid(x):
-                return 1 / (1 + np.exp(-x))
-
             model.to(torch.device("cpu"))
             test_dataloader = dataset.test_dataloader()
             y_pred_list = []
@@ -122,7 +119,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 y_pred_next_item, y_pred_subsequent_items = model.forward(x_batch, torch.device("cpu"))
                 y_pred_next_item = y_pred_next_item.detach().numpy()
                 y_pred_subsequent_items = y_pred_subsequent_items.detach().numpy()
-                y_pred = (sigmoid(y_pred_next_item) + sigmoid(y_pred_subsequent_items)).reshape(-1)
+                y_pred = (y_pred_next_item + y_pred_subsequent_items).reshape(-1)
                 y_pred_list.append(y_pred)
             test_pred = np.array(y_pred_list)
 
