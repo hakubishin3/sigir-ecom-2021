@@ -19,20 +19,28 @@ class RecTaskPLModel(pl.LightningModule):
         )
         self.criterion = torch.nn.BCEWithLogitsLoss()
 
-    def forward(self, x_batch):
-        output = self.model(**x_batch.to_dict(self.config["device"]))
-        return output
+    def forward(self, x_batch, device: torch.device):
+        output_next_item, output_subsequent_items = self.model(**x_batch.to_dict(device))
+        return output_next_item, output_subsequent_items
 
     def training_step(self, batch, batch_idx):
         x_batch, y_batch_next_item, y_batch_subsequent_items = batch
-        y_pred = self.forward(x_batch)
-        loss = self.criterion(y_pred, y_batch_subsequent_items)
+        y_pred_next_item, y_pred_subsequent_items = self.forward(x_batch, self.config["device"])
+
+        loss_next_item = self.criterion(y_pred_next_item, y_batch_next_item)
+        loss_subsequent_items = self.criterion(y_pred_subsequent_items, y_batch_subsequent_items)
+        loss = loss_next_item + loss_subsequent_items
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         x_batch, y_batch_next_item, y_batch_subsequent_items = batch
-        y_pred = self.forward(x_batch)
-        loss = self.criterion(y_pred, y_batch_subsequent_items)
+        y_pred_next_item, y_pred_subsequent_items = self.forward(x_batch, self.config["device"])
+
+        loss_next_item = self.criterion(y_pred_next_item, y_batch_next_item)
+        loss_subsequent_items = self.criterion(y_pred_subsequent_items, y_batch_subsequent_items)
+        loss = loss_next_item + loss_subsequent_items
+
+        y_pred = torch.sigmoid(y_pred_next_item) + torch.sigmoid(y_pred_subsequent_items)
         metrics = evaluate_rec_task_metrics(
             y_pred,
             y_batch_next_item,
