@@ -36,6 +36,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     with span("Preprocess data"):
         pr = Preprocessor(config)
         train_preprocessed, test_preprocessed= pr.run(train, test, sku_to_content)
+        del train, test, sku_to_content
         log(f"train_preprocessed: {train_preprocessed.shape}")
         log(f"test_preprocessed: {test_preprocessed.shape}")
 
