@@ -32,12 +32,13 @@ class Preprocessor:
         train["is_test"] = False
         test["is_test"] = True
         total = pd.concat([train, test], axis=0)
+        self.get_query_features(total)
         total = self._filter_out(total)
 
         self.preprocessing_sku_to_content(sku_to_content)
         total = pd.merge(total, sku_to_content, on=["product_sku_hash"], how="left")
 
-        self.get_elapsed_time(total)
+        self.get_time_features(total)
         self._label_encoding(total)
         self.fillna(total)
 
@@ -65,7 +66,7 @@ class Preprocessor:
             .apply(lambda x: x if isinstance(x, list) else [0.5] * 50)
         )
 
-    def get_elapsed_time(self, df: pd.DataFrame) -> None:
+    def get_time_features(self, df: pd.DataFrame) -> None:
         df["elapsed_time"] = (
             (
                 df["server_timestamp_epoch_ms"]
@@ -76,6 +77,14 @@ class Preprocessor:
             (df["elapsed_time"].astype(int) + 1)
             .clip(lower=1, upper=self.config["encoder_params"]["size_elapsed_time"] - 1)
         )
+
+        df["hour"] = (df["server_timestamp"].dt.hour + 1).astype("int8")
+        df["weekday"] = (df["server_timestamp"].dt.weekday + 1).astype("int8")
+        df["weekend"] = df["weekday"].isin([6, 7]).astype("int8") + 1
+
+    @staticmethod
+    def get_query_features(df: pd.DataFrame) -> None:
+        df["is_query"] = df.groupby("session_id_hash")["is_search"].transform("max").astype("int8") + 1
 
     def _label_encoding(self, df: pd.DataFrame) -> None:
         for col in self.encode_cols:
@@ -140,6 +149,10 @@ class Preprocessor:
                 "description_vector": list,
                 "image_vector": list,
                 "event_type": list,
+                "hour": list,
+                "weekday": list,
+                "weekend": list,
+                "is_query": list,
             })
             .to_dict(orient="index") 
         )

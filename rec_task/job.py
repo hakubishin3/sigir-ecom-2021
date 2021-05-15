@@ -2,6 +2,7 @@ import yaml
 import json
 import wandb
 import random
+import torch
 import argparse
 import numpy as np
 import pandas as pd
@@ -35,6 +36,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     with span("Preprocess data"):
         pr = Preprocessor(config)
         train_preprocessed, test_preprocessed= pr.run(train, test, sku_to_content)
+        del train, test, sku_to_content
         log(f"train_preprocessed: {train_preprocessed.shape}")
         log(f"test_preprocessed: {test_preprocessed.shape}")
 
@@ -111,8 +113,17 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             )
             trainer.save_checkpoint(best_ckpt)
 
-            _test_pred = trainer.predict(model, dataset.test_dataloader())   # batch_size = 1
-            test_pred = np.array([i.reshape(-1) for i in _test_pred])
+            model.to(torch.device("cpu"))
+            test_dataloader = dataset.test_dataloader()
+            y_pred_list = []
+            for x_batch in test_dataloader:
+                y_pred_next_item, y_pred_subsequent_items = model.forward(x_batch, torch.device("cpu"))
+                y_pred_next_item = y_pred_next_item.detach().numpy()
+                y_pred_subsequent_items = y_pred_subsequent_items.detach().numpy()
+                y_pred = (y_pred_next_item + y_pred_subsequent_items).reshape(-1)
+                y_pred_list.append(y_pred)
+            test_pred = np.array(y_pred_list)
+
             test_pred_all_folds += test_pred / config["fold_params"]["n_splits"]
 
     with span("Make submission file"):
@@ -132,7 +143,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             else:
                 session_id_hash_index = pr.label_to_index_dict["session_id_hash"][session_id_hash]
                 test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
-                pred = test_pred[test_data_index]
+                pred = test_pred_all_folds[test_data_index]
                 items_index = pred.argsort()[::-1][:20]
                 item_list = []
                 for item_index in items_index:

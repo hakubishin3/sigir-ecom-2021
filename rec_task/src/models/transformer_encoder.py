@@ -23,6 +23,12 @@ class EncoderEmbeddings(nn.Module):
         self.category_hash_first_level_embeddings = make_embedding_func(encoder_params["size_category_hash_first_level"])
         self.category_hash_second_level_embeddings = make_embedding_func(encoder_params["size_category_hash_second_level"])
         self.category_hash_third_level_embeddings = make_embedding_func(encoder_params["size_category_hash_third_level"])
+
+        self.hour_embeddings = make_embedding_func(encoder_params["size_hour"])
+        self.weekday_embeddings = make_embedding_func(encoder_params["size_weekday"])
+        self.weekend_embeddings = make_embedding_func(encoder_params["size_weekend"])
+        self.is_query_embeddings = make_embedding_func(3)
+
         self.position_embeddings = nn.Embedding(
             encoder_params["window_size"],
             embedding_dim=encoder_params["hidden_size"],
@@ -33,7 +39,7 @@ class EncoderEmbeddings(nn.Module):
             encoder_params["hidden_size"],
         )
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 4 + encoder_params["hidden_size"],
+            encoder_params["embedding_size"] * 8 + encoder_params["hidden_size"],
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -58,6 +64,10 @@ class EncoderEmbeddings(nn.Module):
         category_hash_third_level=None,
         description_vector=None,
         image_vector=None,
+        hour=None,
+        weekday=None,
+        weekend=None,
+        is_query=None,
     ):
         item_embedding_list = [
             self.id_embeddings(input_ids),
@@ -78,6 +88,10 @@ class EncoderEmbeddings(nn.Module):
             self.event_type_embeddings(event_type),
             self.product_action_embeddings(product_action),
             self.hashed_url_embeddings(hashed_url),
+            self.hour_embeddings(hour),
+            self.weekday_embeddings(weekday),
+            self.weekend_embeddings(weekend),
+            self.is_query_embeddings(is_query),
         ]
         embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
@@ -106,11 +120,24 @@ class TransformerEncoderModel(nn.Module):
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
         self.embeddings = EncoderEmbeddings(self.encoder_params)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=encoder_params["hidden_size"], nhead=encoder_params["nhead"])
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=encoder_params["num_layers"])
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=encoder_params["hidden_size"],
+            nhead=encoder_params["nhead"],
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=encoder_params["num_layers"],
+        )
         self.dropout = nn.Dropout(dropout)
         self.global_max_pooling_1d = GlobalMaxPooling1D()
-        self.ffn = nn.Sequential(
+        self.ffn_next_item = nn.Sequential(
+            nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
+            nn.LayerNorm(encoder_params["hidden_size"]),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(encoder_params["hidden_size"], num_labels),
+        )
+        self.ffn_subsequent_items = nn.Sequential(
             nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
             nn.LayerNorm(encoder_params["hidden_size"]),
             nn.Dropout(dropout),
@@ -139,6 +166,10 @@ class TransformerEncoderModel(nn.Module):
         category_hash_third_level=None,
         description_vector=None,
         image_vector=None,
+        hour=None,
+        weekday=None,
+        weekend=None,
+        is_query=None,
     ):
         embedding_output = self.embeddings(
             input_ids=input_ids,
@@ -153,20 +184,25 @@ class TransformerEncoderModel(nn.Module):
             category_hash_third_level=category_hash_third_level,
             description_vector=description_vector,
             image_vector=image_vector,
+            hour=hour,
+            weekday=weekday,
+            weekend=weekend,
+            is_query=is_query,
         )
+        # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
+        embedding_output = embedding_output.permute([1, 0, 2])
         encoder_outputs = self.encoder(
             embedding_output,
         )
-        # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
-        encoder_outputs = encoder_outputs.permute([1, 0, 2])
         encoder_outputs = self.dropout(encoder_outputs)
 
         # hidden: [seq_len, batch, lstm_hidden_dim]
         hidden, _  = self.seq(encoder_outputs)
         last_state = hidden[-1, :, :]
-        logits = self.ffn(last_state)
+        output_next_item = self.ffn_next_item(last_state)
+        output_subsequent_items = self.ffn_subsequent_items(last_state)
 
-        return logits
+        return output_next_item, output_subsequent_items
 
 
 class GlobalMaxPooling1D(nn.Module):
