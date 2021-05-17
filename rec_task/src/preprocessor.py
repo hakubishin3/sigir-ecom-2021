@@ -120,9 +120,6 @@ class Preprocessor:
         assert original_rows == len(df), "original_rows != len(df)"
         df = df[~((df["is_interaction"] == 1) & (df["event_type"] == "pageview"))]
 
-        # `remove from cart` events to avoid feeding them to session_rec as positive signals
-        df = df[df["product_action"] != "remove"]
-
         # rows with query
         df = df.query("is_search == 0")
 

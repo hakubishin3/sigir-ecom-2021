@@ -127,7 +127,7 @@ class RecTaskDataset(Dataset):
             product_sku_hash = session_seq["product_sku_hash"][start_idx:end_idx]
 
             pad_size = window_size - len(product_sku_hash)
-            product_sku_hash += [0] * pad_size
+            product_sku_hash = [0] * pad_size + product_sku_hash
             elapsed_time = [0] * pad_size + session_seq["elapsed_time"][start_idx:end_idx]
             event_type = [0] * pad_size + session_seq["event_type"][start_idx:end_idx] 
             product_action = [0] * pad_size + session_seq["product_action"][start_idx:end_idx] 
