@@ -2,6 +2,14 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Tuple, Dict, List
+from sklearn.preprocessing import normalize
+from tqdm import tqdm
+from annoy import AnnoyIndex
+
+
+def normalize_l2(x):
+    x_l2_norm = np.linalg.norm(x, ord=2)
+    return x / x_l2_norm
 
 
 class Preprocessor:
@@ -36,6 +44,8 @@ class Preprocessor:
         total = self._filter_out(total)
 
         self.preprocessing_sku_to_content(sku_to_content)
+        total = self._replace_items(total, sku_to_content)
+
         total = pd.merge(total, sku_to_content, on=["product_sku_hash"], how="left")
 
         self.get_time_features(total)
@@ -53,6 +63,23 @@ class Preprocessor:
             .apply(
                 lambda x: len(x.split("/")) if isinstance(x, str) else np.nan
             )
+        )
+        sku_to_content["description_vector_normalized"] = (
+            sku_to_content["description_vector"].apply(
+                lambda x: list(normalize_l2(x)) 
+                if isinstance(x, list) else np.nan)
+        )
+        sku_to_content["image_vector_normalized"] = (
+            sku_to_content["image_vector"].apply(
+                lambda x: list(normalize_l2(x)) 
+                if isinstance(x, list) else np.nan)
+        )
+        sku_to_content["item_vector"] = (
+            sku_to_content.apply(
+                lambda x:
+                normalize_l2(x["image_vector_normalized"] + x["description_vector_normalized"])
+                if isinstance(x["image_vector_normalized"], list) and isinstance(x["description_vector_normalized"], list)
+                else np.nan, axis=1)
         )
 
     @staticmethod
@@ -122,10 +149,37 @@ class Preprocessor:
 
         # rows with query
         df = df.query("is_search == 0")
+        return df
 
-        # unseen from train data
-        train_item_index_set = set(df.query("is_test == False")["product_sku_hash"].unique())
-        df.loc[~df["product_sku_hash"].isin(train_item_index_set), "product_sku_hash"] = np.nan
+    @staticmethod
+    def _replace_items(df: pd.DataFrame, sku_to_content: pd.DataFrame) -> pd.DataFrame:
+        train_item_set = set(df.query("is_test == False")["product_sku_hash"].unique())
+        test_item_set = set(df.query("is_test == True")["product_sku_hash"].unique())
+        test_only_item_set = test_item_set - train_item_set
+        target_item_set = test_only_item_set
+        candidacies_item_set = train_item_set
+
+        vector_df = sku_to_content[["product_sku_hash", "item_vector"]].dropna().reset_index(drop=True)
+        candidacies_vector_df = vector_df[vector_df["product_sku_hash"].isin(candidacies_item_set)]
+        target_item_vector_df = vector_df[vector_df["product_sku_hash"].isin(target_item_set)]
+        index_to_item = {idx: l for idx, l in enumerate(candidacies_vector_df["product_sku_hash"])}
+        t = AnnoyIndex(100, "angular")
+        for i, v in enumerate(candidacies_vector_df["item_vector"].values):
+            t.add_item(i, v)
+        t.build(10)
+
+        mapping = {}
+        for i, row in target_item_vector_df.iterrows():
+            item = row["product_sku_hash"]
+            item_vector = row["item_vector"]
+            candidacate_index = t.get_nns_by_vector(item_vector, 1, include_distances=False)[0]
+            most_sim_item = index_to_item[candidacate_index]
+            mapping[item] = most_sim_item
+        df["product_sku_hash"] = df["product_sku_hash"].replace(mapping)
+
+        target_item_set_no_vector = target_item_set - set(target_item_vector_df["product_sku_hash"])
+        df.loc[df["product_sku_hash"].isin(target_item_set_no_vector), "product_sku_hash"] = np.nan
+
         return df
 
     @staticmethod
