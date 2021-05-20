@@ -113,6 +113,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             )
             trainer.save_checkpoint(best_ckpt)
 
+            del train_preprocessed
             model.to(torch.device("cpu"))
             test_dataloader = dataset.test_dataloader()
             y_pred_list = []

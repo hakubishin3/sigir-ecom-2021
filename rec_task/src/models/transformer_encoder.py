@@ -27,7 +27,6 @@ class EncoderEmbeddings(nn.Module):
         self.hour_embeddings = make_embedding_func(encoder_params["size_hour"])
         self.weekday_embeddings = make_embedding_func(encoder_params["size_weekday"])
         self.weekend_embeddings = make_embedding_func(encoder_params["size_weekend"])
-        self.is_query_embeddings = make_embedding_func(3)
 
         self.position_embeddings = nn.Embedding(
             encoder_params["window_size"],
@@ -39,7 +38,7 @@ class EncoderEmbeddings(nn.Module):
             encoder_params["hidden_size"],
         )
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 8 + encoder_params["hidden_size"],
+            encoder_params["embedding_size"] * 7 + encoder_params["hidden_size"],
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -67,7 +66,6 @@ class EncoderEmbeddings(nn.Module):
         hour=None,
         weekday=None,
         weekend=None,
-        is_query=None,
     ):
         item_embedding_list = [
             self.id_embeddings(input_ids),
@@ -91,7 +89,6 @@ class EncoderEmbeddings(nn.Module):
             self.hour_embeddings(hour),
             self.weekday_embeddings(weekday),
             self.weekend_embeddings(weekend),
-            self.is_query_embeddings(is_query),
         ]
         embeddings = torch.cat(embedding_list, dim=-1)
         embeddings = self.linear_embed(embeddings)
@@ -169,7 +166,6 @@ class TransformerEncoderModel(nn.Module):
         hour=None,
         weekday=None,
         weekend=None,
-        is_query=None,
     ):
         embedding_output = self.embeddings(
             input_ids=input_ids,
@@ -187,7 +183,6 @@ class TransformerEncoderModel(nn.Module):
             hour=hour,
             weekday=weekday,
             weekend=weekend,
-            is_query=is_query,
         )
         # encoder_outputs: [batch, seq_len, d_model] => [seq_len, batch, d_model]
         embedding_output = embedding_output.permute([1, 0, 2])

@@ -40,6 +40,8 @@ class Preprocessor:
         train["is_test"] = False
         test["is_test"] = True
         total = pd.concat([train, test], axis=0)
+        total.loc[total["is_search"] == 1, "event_type"] = "search"
+
         self.get_query_features(total)
         total = self._filter_out(total)
 
@@ -111,7 +113,7 @@ class Preprocessor:
 
     @staticmethod
     def get_query_features(df: pd.DataFrame) -> None:
-        df["is_query"] = df.groupby("session_id_hash")["is_search"].transform("max").astype("int8") + 1
+        pass
 
     def _label_encoding(self, df: pd.DataFrame) -> None:
         for col in self.encode_cols:
@@ -147,8 +149,6 @@ class Preprocessor:
         assert original_rows == len(df), "original_rows != len(df)"
         df = df[~((df["is_interaction"] == 1) & (df["event_type"] == "pageview"))]
 
-        # rows with query
-        df = df.query("is_search == 0")
         return df
 
     @staticmethod
@@ -203,7 +203,6 @@ class Preprocessor:
                 "hour": list,
                 "weekday": list,
                 "weekend": list,
-                "is_query": list,
             })
             .to_dict(orient="index") 
         )
