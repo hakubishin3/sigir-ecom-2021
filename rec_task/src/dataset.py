@@ -32,7 +32,6 @@ class Example(NamedTuple):
     hour: torch.LongTensor
     weekday: torch.LongTensor
     weekend: torch.LongTensor
-    is_query: torch.LongTensor
 
     def to_dict(self, device: torch.device) -> Dict[str, torch.Tensor]:
         return dict(
@@ -52,7 +51,6 @@ class Example(NamedTuple):
             hour=self.hour.to(device),
             weekday=self.weekday.to(device),
             weekend=self.weekend.to(device),
-            is_query=self.is_query.to(device),
         )
 
 
@@ -142,7 +140,6 @@ class RecTaskDataset(Dataset):
             hour = [0] * pad_size + session_seq["hour"][start_idx:end_idx]
             weekday = [0] * pad_size + session_seq["weekday"][start_idx:end_idx]
             weekend = [0] * pad_size + session_seq["weekend"][start_idx:end_idx]
-            is_query = [0] * pad_size + session_seq["is_query"][start_idx:end_idx]
 
             if not self.is_test:
                 target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1 and i not in product_sku_hash]   # remove nan
@@ -171,7 +168,6 @@ class RecTaskDataset(Dataset):
                 hour=torch.LongTensor(hour),
                 weekday=torch.LongTensor(weekday),
                 weekend=torch.LongTensor(weekend),
-                is_query=torch.LongTensor(is_query),
             )
 
             self.all_examples.append(example)
