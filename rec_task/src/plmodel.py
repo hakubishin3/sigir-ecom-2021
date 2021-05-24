@@ -10,13 +10,14 @@ from src.loss import FocalLoss
 
 
 class RecTaskPLModel(pl.LightningModule):
-    def __init__(self, config: dict, num_labels: int) -> None:
+    def __init__(self, config: dict, num_labels: int, preprocessor) -> None:
         super().__init__()
         self.config = config
         self.num_labels = num_labels
         self.model = TransformerEncoderModel(
             encoder_params=config["encoder_params"],
             num_labels=num_labels,
+            preprocessor=preprocessor,
         )
         self.criterion = FocalLoss(
             gamma=config["loss_func_params"]["gamma"],
