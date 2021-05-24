@@ -1,19 +1,47 @@
+import numpy as np
+import gensim
 import torch
 import torch.nn as nn
 from functools import partial
 
 
 class EncoderEmbeddings(nn.Module):
-    def __init__(self, encoder_params: dict) -> None:
+    def __init__(self, encoder_params: dict, preprocessor) -> None:
         super().__init__()
         self.encoder_params = encoder_params
+        self.preprocessor = preprocessor
+
+        w2v_model = gensim.models.KeyedVectors.load(
+            "data/output/train_w2v/word2vec.model",
+        )
+        id_vec_list = []
+        for label in range(encoder_params["vocab_size"]):
+            if label in [0, 1]:
+                # 0 is padding id, 1 is nan
+                vec = np.random.normal(0.0, 0.01, size=encoder_params["embedding_size"])
+            else:
+                product_sku_hash = preprocessor.index_to_label_dict["product_sku_hash"][label]
+                try:
+                    vec = w2v_model.wv[product_sku_hash]
+                except:
+                    vec = np.random.normal(0.0, 0.01, size=encoder_params["embedding_size"])
+            id_vec_list.append(vec)
+
+        id_vectors = np.array(id_vec_list)
+        print(encoder_params["vocab_size"])
+        print(id_vectors.shape)
+        id_weights = torch.FloatTensor(id_vectors)
+        self.id_embeddings = nn.Embedding.from_pretrained(
+            id_weights,
+            freeze=False,
+            padding_idx=encoder_params["pad_token_id"],
+        )
 
         make_embedding_func = partial(
             nn.Embedding,
             embedding_dim=encoder_params["embedding_size"],
             padding_idx=encoder_params["pad_token_id"],
         )
-        self.id_embeddings = make_embedding_func(encoder_params["vocab_size"])
         self.elapsed_time_embeddings = make_embedding_func(encoder_params["size_elapsed_time"])
         self.event_type_embeddings = make_embedding_func(encoder_params["size_event_type"])
         self.product_action_embeddings = make_embedding_func(encoder_params["size_product_action"])
@@ -109,14 +137,16 @@ class TransformerEncoderModel(nn.Module):
     def __init__(
         self,
         encoder_params: dict,
+        preprocessor,
         dropout: float = 0.3,
         num_labels: int = 1,
     ) -> None:
         super().__init__()
         self.encoder_params = encoder_params
+        self.preprocessor = preprocessor
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
 
-        self.embeddings = EncoderEmbeddings(self.encoder_params)
+        self.embeddings = EncoderEmbeddings(self.encoder_params, preprocessor=preprocessor)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=encoder_params["hidden_size"],
             nhead=encoder_params["nhead"],

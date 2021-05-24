@@ -103,7 +103,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 test_session_seqs,
                 num_labels,
             )
-            model = RecTaskPLModel(config, num_labels=num_labels)
+            model = RecTaskPLModel(config, num_labels=num_labels, preprocessor=pr)
             trainer = get_trainer(config, wandb_logger=wandb_logger, debug=debug)
             trainer.fit(model, dataset)
             best_ckpt = (
