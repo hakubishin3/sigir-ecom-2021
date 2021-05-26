@@ -164,19 +164,22 @@ class TransformerEncoderModel(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(encoder_params["hidden_size"], num_labels),
         )
-        self.ffn_subsequent_items = nn.Sequential(
-            nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
-            nn.LayerNorm(encoder_params["hidden_size"]),
-            nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
-            nn.Linear(encoder_params["hidden_size"], num_labels),
-        )
         self.seq = nn.LSTM(
             input_size=encoder_params["hidden_size"],
             bidirectional=False,
             hidden_size=encoder_params["lstm_hidden_size"],
             num_layers=encoder_params["lstm_num_layers"],
             dropout=encoder_params["lstm_dropout"])
+
+        self.sequence_embedding_subsequent_items = nn.Sequential(
+            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
+            nn.LayerNorm(encoder_params["lstm_hidden_size"]),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["embedding_size"]),
+        )
+        self.subsequent_items_bias = nn.Parameter(torch.Tensor(num_labels,))
+        self.subsequent_items_bias.data.normal_(0., 0.01)
 
     def forward(
         self,
@@ -225,7 +228,11 @@ class TransformerEncoderModel(nn.Module):
         hidden, _  = self.seq(encoder_outputs)
         last_state = hidden[-1, :, :]
         output_next_item = self.ffn_next_item(last_state)
-        output_subsequent_items = self.ffn_subsequent_items(last_state)
+        output_subsequent_items = nn.functional.linear(
+            input=self.sequence_embedding_subsequent_items(last_state),
+            weight=self.embeddings.id_embeddings.weight,
+            bias=self.subsequent_items_bias,
+        )
 
         return output_next_item, output_subsequent_items
 
