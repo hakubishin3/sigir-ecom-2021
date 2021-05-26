@@ -61,12 +61,8 @@ class EncoderEmbeddings(nn.Module):
             embedding_dim=encoder_params["hidden_size"],
         )
 
-        self.item_linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 6 + 50 * 2,
-            encoder_params["hidden_size"],
-        )
         self.linear_embed = nn.Linear(
-            encoder_params["embedding_size"] * 7 + encoder_params["hidden_size"],
+            encoder_params["embedding_size"] * 13 + 50 * 2,
             encoder_params["hidden_size"],
         )
         self.layer_norm = nn.LayerNorm(
@@ -95,7 +91,7 @@ class EncoderEmbeddings(nn.Module):
         weekday=None,
         weekend=None,
     ):
-        item_embedding_list = [
+        embedding_list = [
             self.id_embeddings(input_ids),
             self.price_bucket_embeddings(price_bucket),
             self.number_of_category_hash_embeddings(number_of_category_hash),
@@ -104,12 +100,6 @@ class EncoderEmbeddings(nn.Module):
             self.category_hash_third_level_embeddings(category_hash_third_level),
             description_vector,
             image_vector,
-        ]
-        item_embeddings = torch.cat(item_embedding_list, dim=-1)
-        item_embeddings = self.item_linear_embed(item_embeddings)
-
-        embedding_list = [
-            item_embeddings,
             self.elapsed_time_embeddings(elapsed_time),
             self.event_type_embeddings(event_type),
             self.product_action_embeddings(product_action),
@@ -158,11 +148,11 @@ class TransformerEncoderModel(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.global_max_pooling_1d = GlobalMaxPooling1D()
         self.ffn_next_item = nn.Sequential(
-            nn.Linear(encoder_params["hidden_size"], encoder_params["hidden_size"]),
-            nn.LayerNorm(encoder_params["hidden_size"]),
+            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
+            nn.LayerNorm(encoder_params["lstm_hidden_size"]),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
-            nn.Linear(encoder_params["hidden_size"], num_labels),
+            nn.Linear(encoder_params["lstm_hidden_size"], num_labels),
         )
         self.seq = nn.LSTM(
             input_size=encoder_params["hidden_size"],
