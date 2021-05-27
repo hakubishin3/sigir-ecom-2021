@@ -110,7 +110,7 @@ class RecTaskDataset(Dataset):
                     continue
 
                 max_output_size = min(self.max_output_size, n_items)
-                n_output = np.random.randint(2, max_output_size + 1)
+                n_output = np.random.randint(1, max_output_size + 1)
                 end_idx = item_index.index(n_items - n_output + 1)
                 # check
                 start_idx = max(0, end_idx - window_size)
