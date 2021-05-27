@@ -42,13 +42,13 @@ class Preprocessor:
         total = pd.concat([train, test], axis=0)
         total.loc[total["is_search"] == 1, "event_type"] = "search"
 
-        self.get_query_features(total)
         total = self._filter_out(total)
 
         self.preprocessing_sku_to_content(sku_to_content)
         total = self._replace_items(total, sku_to_content)
 
         total = pd.merge(total, sku_to_content, on=["product_sku_hash"], how="left")
+        total = self.preprocessing_query(total, sku_to_content)
 
         self.get_time_features(total)
         self._label_encoding(total)
@@ -94,6 +94,10 @@ class Preprocessor:
             df["image_vector"]
             .apply(lambda x: x if isinstance(x, list) else [0.5] * 50)
         )
+        df["query_vector"] = (
+            df["query_vector"]
+            .apply(lambda x: x if isinstance(x, list) else [0.5] * 50)
+        )
 
     def get_time_features(self, df: pd.DataFrame) -> None:
         df["elapsed_time"] = (
@@ -112,8 +116,28 @@ class Preprocessor:
         df["weekend"] = df["weekday"].isin([6, 7]).astype("int8") + 1
 
     @staticmethod
-    def get_query_features(df: pd.DataFrame) -> None:
-        pass
+    def preprocessing_query(df: pd.DataFrame, sku_to_content: pd.DataFrame) -> pd.DataFrame:
+        original_size = len(df)
+        df["key"] = df["session_id_hash"] + "_" + df["event_type"] + "_" + df["server_timestamp_epoch_ms"].astype(str)
+        search_df = df.query("event_type == 'search'")[["key", "product_skus_hash"]]
+        search_df = search_df.drop_duplicates(subset="key")
+        search_df = search_df.explode("product_skus_hash").rename(columns={"product_skus_hash": "product_sku_hash"})
+        search_df = pd.merge(search_df, sku_to_content[["product_sku_hash", "image_vector", "description_vector", "price_bucket"]], on=["product_sku_hash"], how="left")
+        search_df["image_vector"] = search_df["image_vector"].apply(lambda x: np.array(x))
+        search_image_vector = search_df.groupby("key")["image_vector"].apply(lambda x: np.mean(x)).apply(lambda x: list(x) if not x is np.nan else np.nan).rename("search_image_vector")
+        search_df["description_vector"] = search_df["description_vector"].apply(lambda x: np.array(x))
+        search_description_vector = search_df.groupby("key")["description_vector"].apply(lambda x: np.mean(x)).apply(lambda x: list(x) if not x is np.nan else np.nan).rename("search_description_vector")
+        search_price_bucket = search_df.groupby("key")["price_bucket"].median().apply(np.floor).rename("search_price_bucket")
+
+        search_features = pd.concat([search_image_vector, search_description_vector, search_price_bucket], axis=1)
+        df = pd.merge(df, search_features, on="key", how="left")
+        assert len(df) == original_size, "Error in query preprocess"
+
+        df["image_vector"] = df["image_vector"].fillna(df["search_image_vector"])
+        df["description_vector"] = df["description_vector"].fillna(df["search_description_vector"])
+        df["price_bucket"] = df["price_bucket"].fillna(df["search_price_bucket"])
+        df.drop(columns=["key", "search_image_vector", "search_description_vector", "search_price_bucket"], inplace=True)
+        return df
 
     def _label_encoding(self, df: pd.DataFrame) -> None:
         for col in self.encode_cols:
@@ -203,6 +227,7 @@ class Preprocessor:
                 "hour": list,
                 "weekday": list,
                 "weekend": list,
+                "query_vector": list,
             })
             .to_dict(orient="index") 
         )
