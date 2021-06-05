@@ -24,6 +24,9 @@ class DataLoader:
             train_session_ids = train_session_ids[:int(len(train_session_ids) * 0.01)]
             browsing_train = browsing_train[browsing_train["session_id_hash"].isin(train_session_ids)]
             search_train = search_train[search_train["session_id_hash"].isin(train_session_ids)]
+            test_session_ids = list(test["session_id_hash"].unique())
+            test_session_ids = test_session_ids[:int(len(test_session_ids) * 0.01)]
+            test = test[test["session_id_hash"].isin(test_session_ids)]
 
         train = self._concat_browsing_and_search(browsing_train, search_train)
         return train, test, sku_to_content
