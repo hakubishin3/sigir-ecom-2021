@@ -151,6 +151,14 @@ class TransformerEncoderModel(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.global_average_pooling_1d = GlobalAveragePooling1D()
+
+        self.seq_next_item = nn.LSTM(
+            input_size=encoder_params["hidden_size"],
+            bidirectional=False,
+            hidden_size=encoder_params["lstm_hidden_size"],
+            num_layers=encoder_params["lstm_num_layers"],
+            dropout=encoder_params["lstm_dropout"],
+        )
         self.ffn_next_item = nn.Sequential(
             nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
             nn.LayerNorm(encoder_params["lstm_hidden_size"]),
@@ -163,10 +171,17 @@ class TransformerEncoderModel(nn.Module):
             bidirectional=True,
             hidden_size=encoder_params["lstm_hidden_size"],
             num_layers=encoder_params["lstm_num_layers"],
-            dropout=encoder_params["lstm_dropout"])
-
+            dropout=encoder_params["lstm_dropout"],
+        )
         self.sequence_embedding_subsequent_items = nn.Sequential(
             nn.Linear(encoder_params["lstm_hidden_size"] * 2, encoder_params["lstm_hidden_size"]),
+            nn.LayerNorm(encoder_params["lstm_hidden_size"]),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["embedding_size"]),
+        )
+        self.sequence_embedding_next_item = nn.Sequential(
+            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
             nn.LayerNorm(encoder_params["lstm_hidden_size"]),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
@@ -221,6 +236,7 @@ class TransformerEncoderModel(nn.Module):
         encoder_outputs = self.dropout(encoder_outputs)
 
         if self.output_type == "subsequent_items":
+            # hidden: [seq_len, batch, lstm_hidden_dim]
             hidden, _  = self.seq(encoder_outputs)
             hidden = hidden.permute([1, 0, 2])
             last_state = self.global_average_pooling_1d(hidden)
@@ -232,11 +248,16 @@ class TransformerEncoderModel(nn.Module):
             )
             return output_subsequent_items
 
-        elif self.output_type == "next_items":
+        elif self.output_type == "next_item":
             # hidden: [seq_len, batch, lstm_hidden_dim]
-            hidden, _  = self.seq(encoder_outputs)
+            hidden, _  = self.seq_next_item(encoder_outputs)
             last_state = hidden[-1, :, :]
-            output_next_item = self.ffn_next_item(last_state)
+            sequence_embedding = self.sequence_embedding_next_item(last_state)
+            output_next_item = nn.functional.linear(
+                input=sequence_embedding,
+                weight=self.embeddings.id_embeddings.weight,
+                bias=self.items_bias,
+            )
             return output_next_item
 
 
