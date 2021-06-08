@@ -6,11 +6,11 @@ from typing import List
 
 from src.models.transformer_encoder import TransformerEncoderModel
 from src.metrics import evaluate_rec_task_metrics
-from src.loss import FocalLoss
+from src.loss import FocalLoss, ClassBalancedLoss
 
 
 class RecTaskPLModel(pl.LightningModule):
-    def __init__(self, config: dict, num_labels: int, preprocessor) -> None:
+    def __init__(self, config: dict, num_labels: int, preprocessor, samples_per_cls) -> None:
         super().__init__()
         self.config = config
         self.num_labels = num_labels
@@ -20,9 +20,13 @@ class RecTaskPLModel(pl.LightningModule):
             num_labels=num_labels,
             preprocessor=preprocessor,
         )
-        self.criterion = FocalLoss(
+
+        self.criterion = ClassBalancedLoss(
+            samples_per_cls=samples_per_cls,
+            no_of_classes=num_labels,
+            loss_type="focalloss",
+            beta=config["loss_func_params"]["beta"],
             gamma=config["loss_func_params"]["gamma"],
-            alpha=config["loss_func_params"]["alpha"],
         )
 
     def forward(self, x_batch, device: torch.device):

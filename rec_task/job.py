@@ -37,6 +37,14 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
     with span("Preprocess data"):
         pr = Preprocessor(config)
         train_preprocessed, test_preprocessed= pr.run(train, test, sku_to_content)
+        item_counts = train.groupby(["product_sku_hash", "session_id_hash"]).size().rename("count").reset_index()
+        item_counts["count"] = 1
+        item_counts = item_counts.groupby(["product_sku_hash"]).size().rename("count").reset_index()
+        item_counts["product_sku_hash"] = item_counts["product_sku_hash"].map(pr.label_to_index_dict["product_sku_hash"])
+        item_counts = item_counts.set_index("product_sku_hash").sort_index()
+        item_counts = item_counts.reindex(np.arange(len(item_counts) + 2))
+        samples_per_cls = item_counts.values.reshape(-1)
+
         del train, test, sku_to_content
         log(f"train_preprocessed: {train_preprocessed.shape}")
         log(f"test_preprocessed: {test_preprocessed.shape}")
@@ -104,7 +112,7 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 test_session_seqs,
                 num_labels,
             )
-            model = RecTaskPLModel(config, num_labels=num_labels, preprocessor=pr)
+            model = RecTaskPLModel(config, num_labels=num_labels, preprocessor=pr, samples_per_cls=samples_per_cls)
             trainer = get_trainer(config, wandb_logger=wandb_logger, debug=debug)
             trainer.fit(model, dataset)
             best_ckpt = (
