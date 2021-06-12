@@ -6,6 +6,7 @@ import torch
 import argparse
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from pathlib import Path
 from sklearn.model_selection import StratifiedKFold
 from pytorch_lightning.loggers import WandbLogger
@@ -117,15 +118,19 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
             model.to(torch.device("cpu"))
             test_dataloader = dataset.test_dataloader()
             y_pred_list = []
-            for x_batch in test_dataloader:
-                y_pred_next_item, y_pred_subsequent_items = model.forward(x_batch, torch.device("cpu"))
-                y_pred_next_item = y_pred_next_item.detach().numpy()
-                y_pred_subsequent_items = y_pred_subsequent_items.detach().numpy()
-                y_pred = (y_pred_next_item + y_pred_subsequent_items).reshape(-1)
+            for x_batch in tqdm(test_dataloader):
+                y_pred = model.forward(x_batch, torch.device("cpu"))
+                y_pred = y_pred.detach().numpy()
+                y_pred = y_pred.reshape(-1)
                 y_pred_list.append(y_pred)
             test_pred = np.array(y_pred_list)
 
             test_pred_all_folds += test_pred / config["fold_params"]["n_splits"]
+
+        np.save(
+            Path(config["file_path"]["output_dir"]) / config["exp_name"] / f"test_pred_fold_{i_fold}",
+            test_pred,
+        )
 
     with span("Make submission file"):
         session_id_hash_index_to_test_data_index = {}
@@ -146,10 +151,15 @@ def run(config: dict, debug: bool, holdout: bool) -> None:
                 test_data_index = session_id_hash_index_to_test_data_index[session_id_hash_index]
                 pred = test_pred_all_folds[test_data_index]
                 items_index = pred.argsort()[::-1][:20]
+                #input_items = test_session_seqs[session_id_hash_index]["product_sku_hash"] + [1]
                 item_list = []
                 for item_index in items_index:
+                    #if item_index in input_items:
+                    #    continue
                     product_sku_hash = pr.index_to_label_dict["product_sku_hash"][item_index]
                     item_list.append(product_sku_hash)
+                    #if len(item_list) >= 20:
+                    #    break
                 original_test_data[idx]["label"] = item_list
 
         outfile_path = Path(config["file_path"]["output_dir"]) / config["exp_name"] / "submission.json"

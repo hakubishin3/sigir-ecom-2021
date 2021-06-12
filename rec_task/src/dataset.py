@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import pandas as pd
 import torch.nn as nn
 import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
@@ -62,6 +63,7 @@ class RecTaskDataset(Dataset):
     def __init__(
         self,
         session_seqs: Dict[int, Dict[str, List[int]]],
+        output_type: str,
         num_labels: int,
         window_size: int,
         is_test: bool = False,
@@ -73,6 +75,16 @@ class RecTaskDataset(Dataset):
         self.max_output_size = max_output_size
         self.all_examples = []
         self.all_targets = []
+        self.output_type = output_type
+        seqs = []
+        outs = []
+
+        if output_type == "subsequent_items":
+            self.thres_n_items = 2
+        elif output_type == "next_items":
+            self.thres_n_items = 1
+        else:
+            raise NameError
 
         for session_seq in self.session_seqs.values():
             # session_seq["product_sku_hash"]
@@ -88,36 +100,37 @@ class RecTaskDataset(Dataset):
                 n_items = len(
                     np.unique([i for i in session_seq["product_sku_hash"] if i != 1])
                 )   # 1 is nan
-                if n_items < 2:
+
+                if n_items < self.thres_n_items:
                     # cant make target
                     continue
 
-                item_index = []
-                check_item_list = []
-                step = 0
-                for i in range(len(session_seq["product_sku_hash"])):
-                    if session_seq["product_sku_hash"][i] == 1:
-                        item_index.append(0)
-                    else:
-                        if session_seq["product_sku_hash"][i] not in check_item_list:
-                            step += 1
-                            check_item_list.append(session_seq["product_sku_hash"][i])
-                        item_index.append(step)
-
-                if n_items == 1 and item_index.index(1) == 0:
+                if n_items == 1 and session_seq["product_sku_hash"][0] != 1:
                     # ex. [detail, view, view]
                     # cant make input
                     continue
 
-                max_output_size = min(self.max_output_size, n_items)
-                n_output = np.random.randint(1, max_output_size + 1)
-                end_idx = item_index.index(n_items - n_output + 1)
-                # check
-                start_idx = max(0, end_idx - window_size)
-                if len(session_seq["product_sku_hash"][start_idx:end_idx]) == 0:
-                    # ex: [detail, detail] and n_output = 2
-                    n_output -= 1
-                    end_idx = item_index.index(n_items - n_output + 1)
+                idx_dict = {}
+                for end_idx in range(1, len(session_seq["product_sku_hash"])):
+                    if session_seq["product_sku_hash"][end_idx] == 1:
+                        continue
+                    start_idx = max(0, end_idx - window_size)
+                    input_items = set(session_seq["product_sku_hash"][start_idx:end_idx]) - {1}
+                    output_items = set(session_seq["product_sku_hash"][end_idx:]) - {1} - input_items
+                    if len(output_items) < self.thres_n_items:
+                        continue
+                    idx_dict[end_idx] = len(output_items)
+
+                if len(idx_dict) == 0:
+                    continue
+
+                n_output = np.random.choice(list(set(idx_dict.values())))
+                candidacies_end_idx = []
+                for k, v in idx_dict.items():
+                    if v == n_output:
+                        candidacies_end_idx.append(k)
+
+                end_idx = max(candidacies_end_idx)
             else:
                 # test mode
                 end_idx = sequence_length
@@ -146,7 +159,7 @@ class RecTaskDataset(Dataset):
 
             if not self.is_test:
                 target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1 and i not in product_sku_hash]   # remove nan
-                target = sorted(set(target), key=target.index)
+                target = sorted(set(target), key=target.index)[:20]
             else:
                 target = [0]   # tekitou
 
@@ -177,14 +190,28 @@ class RecTaskDataset(Dataset):
             self.all_examples.append(example)
             self.all_targets.append(target)
 
+            seqs.append(len(session_seq["product_sku_hash"][start_idx:end_idx]))
+            outs.append(target.size()[0])
+        seqs = pd.Series(seqs).value_counts().sort_index()
+        outs = pd.Series(outs).value_counts().sort_index()
+        print(seqs.sum())
+        print(seqs / seqs.sum())
+        print(outs.sum())
+        print(outs / outs.sum())
+
     def __len__(self):
         return len(self.all_examples)
 
     def __getitem__(self, idx: int) -> Tuple[Example, torch.Tensor]:
         if not self.is_test:
-            target_onehot_subsequent_items = get_onehot(self.all_targets[idx], self.num_labels)
-            target_onehot_next_item = get_onehot(self.all_targets[idx][:1], self.num_labels)
-            return self.all_examples[idx], target_onehot_next_item, target_onehot_subsequent_items
+            if self.output_type == "subsequent_items":
+                target = get_onehot(self.all_targets[idx], self.num_labels)
+            elif self.output_type == "next_items":
+                target = get_onehot(self.all_targets[idx][:1], self.num_labels)
+            else:
+                raise NameError
+
+            return self.all_examples[idx], target
         else:
             return self.all_examples[idx]
 
@@ -204,10 +231,12 @@ class RecTaskDataModule(pl.LightningDataModule):
         self.val_session_seqs = val_session_seqs
         self.test_session_seqs = test_session_seqs
         self.num_labels = num_labels
+        self.output_type = config["output_type"]
 
     def train_dataloader(self) -> "DataLoader":
         train_dataset = RecTaskDataset(
             session_seqs=self.train_session_seqs,
+            output_type=self.output_type,
             num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=False,
@@ -221,6 +250,7 @@ class RecTaskDataModule(pl.LightningDataModule):
     def val_dataloader(self) -> "DataLoader":
         val_dataset = RecTaskDataset(
             session_seqs=self.val_session_seqs,
+            output_type=self.output_type,
             num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=False,
@@ -234,6 +264,7 @@ class RecTaskDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> "DataLoader":
         test_dataset = RecTaskDataset(
             session_seqs=self.test_session_seqs,
+            output_type=self.output_type,
             num_labels=self.num_labels,
             window_size=self.config["window_size"],
             is_test=True,

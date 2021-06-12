@@ -15,6 +15,7 @@ class RecTaskPLModel(pl.LightningModule):
         self.config = config
         self.num_labels = num_labels
         self.model = TransformerEncoderModel(
+            output_type=config["output_type"],
             encoder_params=config["encoder_params"],
             num_labels=num_labels,
             preprocessor=preprocessor,
@@ -25,31 +26,23 @@ class RecTaskPLModel(pl.LightningModule):
         )
 
     def forward(self, x_batch, device: torch.device):
-        output_next_item, output_subsequent_items = self.model(**x_batch.to_dict(device))
-        return output_next_item, output_subsequent_items
+        output = self.model(**x_batch.to_dict(device))
+        return output
 
     def training_step(self, batch, batch_idx):
-        x_batch, y_batch_next_item, y_batch_subsequent_items = batch
-        y_pred_next_item, y_pred_subsequent_items = self.forward(x_batch, self.config["device"])
-
-        loss_next_item = self.criterion(y_pred_next_item, y_batch_next_item)
-        loss_subsequent_items = self.criterion(y_pred_subsequent_items, y_batch_subsequent_items)
-        loss = loss_next_item + loss_subsequent_items
+        x_batch, y_batch = batch
+        y_pred = self.forward(x_batch, self.config["device"])
+        loss = self.criterion(y_pred, y_batch)
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
-        x_batch, y_batch_next_item, y_batch_subsequent_items = batch
-        y_pred_next_item, y_pred_subsequent_items = self.forward(x_batch, self.config["device"])
-
-        loss_next_item = self.criterion(y_pred_next_item, y_batch_next_item)
-        loss_subsequent_items = self.criterion(y_pred_subsequent_items, y_batch_subsequent_items)
-        loss = loss_next_item + loss_subsequent_items
-
-        y_pred = y_pred_next_item + y_pred_subsequent_items
+        x_batch, y_batch = batch
+        y_pred = self.forward(x_batch, self.config["device"])
+        loss = self.criterion(y_pred, y_batch)
         metrics = evaluate_rec_task_metrics(
             y_pred,
-            y_batch_next_item,
-            y_batch_subsequent_items,
+            y_batch,
+            y_batch,
         )
         metrics["loss"] = loss
         return metrics

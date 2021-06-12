@@ -128,12 +128,14 @@ class EncoderEmbeddings(nn.Module):
 class TransformerEncoderModel(nn.Module):
     def __init__(
         self,
+        output_type: str,
         encoder_params: dict,
         preprocessor,
         dropout: float = 0.3,
         num_labels: int = 1,
     ) -> None:
         super().__init__()
+        self.output_type = output_type
         self.encoder_params = encoder_params
         self.preprocessor = preprocessor
         self.encoder_params["vocab_size"] = num_labels   # number of unique items + padding id
@@ -148,7 +150,7 @@ class TransformerEncoderModel(nn.Module):
             num_layers=encoder_params["num_layers"],
         )
         self.dropout = nn.Dropout(dropout)
-        self.global_max_pooling_1d = GlobalMaxPooling1D()
+        self.global_average_pooling_1d = GlobalAveragePooling1D()
         self.ffn_next_item = nn.Sequential(
             nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
             nn.LayerNorm(encoder_params["lstm_hidden_size"]),
@@ -158,20 +160,20 @@ class TransformerEncoderModel(nn.Module):
         )
         self.seq = nn.LSTM(
             input_size=encoder_params["hidden_size"],
-            bidirectional=False,
+            bidirectional=True,
             hidden_size=encoder_params["lstm_hidden_size"],
             num_layers=encoder_params["lstm_num_layers"],
             dropout=encoder_params["lstm_dropout"])
 
         self.sequence_embedding_subsequent_items = nn.Sequential(
-            nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["lstm_hidden_size"]),
+            nn.Linear(encoder_params["lstm_hidden_size"] * 2, encoder_params["lstm_hidden_size"]),
             nn.LayerNorm(encoder_params["lstm_hidden_size"]),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
             nn.Linear(encoder_params["lstm_hidden_size"], encoder_params["embedding_size"]),
         )
-        self.subsequent_items_bias = nn.Parameter(torch.Tensor(num_labels,))
-        self.subsequent_items_bias.data.normal_(0., 0.01)
+        self.items_bias = nn.Parameter(torch.Tensor(num_labels,))
+        self.items_bias.data.normal_(0., 0.01)
 
     def forward(
         self,
@@ -218,26 +220,33 @@ class TransformerEncoderModel(nn.Module):
         )
         encoder_outputs = self.dropout(encoder_outputs)
 
-        # hidden: [seq_len, batch, lstm_hidden_dim]
-        hidden, _  = self.seq(encoder_outputs)
-        last_state = hidden[-1, :, :]
-        output_next_item = self.ffn_next_item(last_state)
-        output_subsequent_items = nn.functional.linear(
-            input=self.sequence_embedding_subsequent_items(last_state),
-            weight=self.embeddings.id_embeddings.weight,
-            bias=self.subsequent_items_bias,
-        )
+        if self.output_type == "subsequent_items":
+            hidden, _  = self.seq(encoder_outputs)
+            hidden = hidden.permute([1, 0, 2])
+            last_state = self.global_average_pooling_1d(hidden)
+            sequence_embedding = self.sequence_embedding_subsequent_items(last_state)
+            output_subsequent_items = nn.functional.linear(
+                input=sequence_embedding,
+                weight=self.embeddings.id_embeddings.weight,
+                bias=self.items_bias,
+            )
+            return output_subsequent_items
 
-        return output_next_item, output_subsequent_items
+        elif self.output_type == "next_items":
+            # hidden: [seq_len, batch, lstm_hidden_dim]
+            hidden, _  = self.seq(encoder_outputs)
+            last_state = hidden[-1, :, :]
+            output_next_item = self.ffn_next_item(last_state)
+            return output_next_item
 
 
-class GlobalMaxPooling1D(nn.Module):
+class GlobalAveragePooling1D(nn.Module):
     """https://discuss.pytorch.org/t/equivalent-of-keras-globalmaxpooling1d/45770/4
     """
     def __init__(self, data_format='channels_last'):
-        super(GlobalMaxPooling1D, self).__init__()
+        super(GlobalAveragePooling1D, self).__init__()
         self.data_format = data_format
         self.step_axis = 1 if self.data_format == 'channels_last' else 2
 
     def forward(self, input):
-        return torch.max(input, axis=self.step_axis).values
+        return torch.mean(input, axis=self.step_axis)
