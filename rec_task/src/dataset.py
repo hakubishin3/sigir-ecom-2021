@@ -78,10 +78,11 @@ class RecTaskDataset(Dataset):
         self.output_type = output_type
         seqs = []
         outs = []
+        items = []
 
         if output_type == "subsequent_items":
             self.thres_n_items = 2
-        elif output_type == "next_items":
+        elif output_type == "next_item":
             self.thres_n_items = 1
         else:
             raise NameError
@@ -159,7 +160,11 @@ class RecTaskDataset(Dataset):
 
             if not self.is_test:
                 target = [i for i in session_seq["product_sku_hash"][end_idx:] if i != 1 and i not in product_sku_hash]   # remove nan
-                target = sorted(set(target), key=target.index)[:20]
+                target = sorted(set(target), key=target.index)
+                if self.output_type == "subsequent_items":
+                    target = target[:20]
+                elif self.output_type == "next_item":
+                    target = target[:1]
             else:
                 target = [0]   # tekitou
 
@@ -192,25 +197,26 @@ class RecTaskDataset(Dataset):
 
             seqs.append(len(session_seq["product_sku_hash"][start_idx:end_idx]))
             outs.append(target.size()[0])
+            items.append(len(set(session_seq["product_sku_hash"][start_idx:end_idx]) - {1}))
         seqs = pd.Series(seqs).value_counts().sort_index()
         outs = pd.Series(outs).value_counts().sort_index()
+        items = pd.Series(items).value_counts().sort_index()
+        print("seqs")
         print(seqs.sum())
         print(seqs / seqs.sum())
+        print("outs")
         print(outs.sum())
         print(outs / outs.sum())
+        print("items")
+        print(items.sum())
+        print(items / items.sum())
 
     def __len__(self):
         return len(self.all_examples)
 
     def __getitem__(self, idx: int) -> Tuple[Example, torch.Tensor]:
         if not self.is_test:
-            if self.output_type == "subsequent_items":
-                target = get_onehot(self.all_targets[idx], self.num_labels)
-            elif self.output_type == "next_items":
-                target = get_onehot(self.all_targets[idx][:1], self.num_labels)
-            else:
-                raise NameError
-
+            target = get_onehot(self.all_targets[idx], self.num_labels)
             return self.all_examples[idx], target
         else:
             return self.all_examples[idx]
